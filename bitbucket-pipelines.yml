@@ -1,0 +1,10 @@
+image:
+    name: nimlang/nim:alpine
+
+pipelines:
+    default:
+        - step:
+            script:
+                - nimble refresh
+                - nimble build
+                - nimble test
