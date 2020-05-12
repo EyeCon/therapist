@@ -7,4 +7,5 @@ pipelines:
             script:
                 - nimble refresh
                 - nimble build
-                - nimble test
+                - nimble develop
+                - nimble tests
