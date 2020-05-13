@@ -588,7 +588,7 @@ proc parse(specification: Specification, args: seq[string], command: string, sta
     except HelpError:
         raise newException(MessageError, render_help(specification, command))
 
-proc parse*(specification: tuple, prolog="", epilog="", args: seq[string], command = extractFilename(getAppFilename())) =
+proc parse*(specification: tuple, prolog="", epilog="", args: seq[string] = commandLineParams(), command = extractFilename(getAppFilename())) =
     parse(newSpecification(specification, prolog, epilog), args, command)
 
 proc parse*(specification: tuple, prolog="", epilog="", args: string, command = extractFilename(getAppFilename())) =

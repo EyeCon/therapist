@@ -9,3 +9,11 @@ pipelines:
                 - nimble build
                 - nimble develop
                 - nimble tests
+        - step:
+            name: 'nim-1.0.0'
+            image: nimlang/nim:1.0.0-alpine
+            script:
+                - nimble refresh
+                - nimble build
+                - nimble develop
+                - nimble tests

@@ -6,7 +6,7 @@ description   = "Type-safe argument/option parsing with minimal magic"
 license       = "MIT"
 srcDir        = "src"
 bin           = @["therapist"]
-installExt = @["nim"]
+installExt    = @["nim"]
 
 from os import splitFile
 
@@ -27,5 +27,5 @@ task clean, "Clean up generated binaries, css and html files":
 
 # Dependencies
 
-requires "nim >= 1.2.0"
+requires "nim >= 1.0.0"
 requires "shlex >= 0.1.0"
