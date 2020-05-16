@@ -126,6 +126,26 @@ will only appear in the help for that command, shown if you run `navel_fate mine
 
 Many more examples are available in the source code and in the nimdoc for the various functions.
 
+Notes on parsing
+----------------
+
+- There are three types of argument:
+      - Positional Arguments (declared in variants as `<value>`) whose value is determined by the order 
+        of arguments provided
+      - Optional Arguments (declared in variants as `-o` or `--option`) which may take an argument or 
+        simply be counted
+      - Commands (declared in variants as `command`) which start a subparser, which may take different
+        options
+- Options may be interleved with arguments, so `markup input.txt -o output.html` is the same as
+`markup -o output.html input.txt`
+- If a command is seen, parsing will switch to that command immediately. So in `pal --verbose push --force`,
+the base barser receives `--verbose`, and the `push` comamnd parser receives `--force`
+- If `--` is seen, the remainder of the arguments will be taken to be positional arguments, even if they 
+look like options or commands
+- `CountArg`'s short options may be coalesced together, but not options that taken an argument. i.e. `pal -vvv`
+going to give you some *really* verbose output
+- If you want to define a new value type `defineArg` is a template that will fill in the boilerplate for you
+
 Installation
 ------------
 

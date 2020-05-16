@@ -3,7 +3,6 @@ import os
 import strformat
 import strutils
 import tables
-import unittest
 import pegs
 import shlex
 import std/wordwrap
@@ -66,25 +65,25 @@ type
         discard
     StringArg* = ref object of ValueArg
         ## An argument or option whose value is a string
-        default: string
+        defaultVal: string
         value*: string
         values*: seq[string]
         choices: seq[string]
     FloatArg* = ref object of ValueArg
         ## An argument or option whose value is a float
-        default: float
+        defaultVal: float
         value*: float
         values*: seq[float]
         choices: seq[float]
     IntArg* = ref object of ValueArg
         ## An argument or option whose value is an int
-        default: int
+        defaultVal: int
         value*: int
         values*: seq[int]
         choices: seq[int]
     CountArg* = ref object of Arg
         ## Counts the number of times this argument appears
-        default: int
+        defaultVal: int
         choices: seq[int]
     HelpArg* = ref object of CountArg
         ## If this argument is provided, a `MessageError` containing a help message will be raised
@@ -139,16 +138,16 @@ proc newSpecification(spec: tuple, prolog: string, epilog: string): Specificatio
 
 proc parse(specification: Specification, args: seq[string], command: string, start=0)
 
-func initArg*[A: ValueArg|CountArg, T](arg: var A, variants: seq[string], help: string, default: T, choices: seq[T], required: bool, optional: bool, multi: bool) =
+func initArg*[A, T](arg: var A, variants: seq[string], help: string, defaultVal: T, choices: seq[T], required: bool, optional: bool, multi: bool) =
     ## If you define your own ValueArg, you can call this function to initialise it
     arg.variants = variants
     when A is CountArg:
-        arg.count = default
+        arg.count = defaultVal
     else:
-        arg.value = default
+        arg.value = defaultVal
         arg.values = newSeq[T]()
     arg.choices = choices
-    arg.default = default
+    arg.defaultVal = defaultVal
     arg.help = help
     arg.required = required
     arg.optional = optional
@@ -474,9 +473,10 @@ method parse*(arg: Arg, value: string, variant: string) {.base.} =
     ## value cannot be parsed, a `ParseError` is raised with a user-friendly explanation
     raise newException(ValueError, &"Parse not implemented for {$type(arg)}")
 
-template check_choices[T](arg: Arg, value: T, variant: string) {.inject.} = 
+template check_choices*[T](arg: Arg, value: T, variant: string) {.inject.} = 
+    ## `check_choices` checks that `value` has been set to one of the acceptable `choices` values
     if len(arg.choices)>0 and not (value in arg.choices):
-        let message = fmt"Expected {variant} value to be {arg.render_choices()}, got: '{value}'"
+        let message = "Expected " & variant & " value to be " & arg.render_choices() & " , got: '" & $value & "'"
         raise newException(ParseError, message)
 
 method parse(arg: IntArg, value: string, variant: string) =
@@ -501,6 +501,57 @@ method parse(arg: StringArg, value: string, variant: string) =
     arg.check_choices(value, variant)
     arg.value = value
     arg.values.add(value)
+
+template defineArg*[T](TypeName: untyped, cons: untyped, name: string, parseT: proc (value: string): T, defaultT: T) =
+    ## `defineArg` is a concession to the power of magic. If you want to define your own `ValueArg` for type T,
+    ## you simply need to pass in a method that is able to parse a string into a T and a sensible default value
+    ## default(T) is often a good bet, but is not defined for all types. Beware, the error messages can get gnarly
+    ## 
+    ## .. code-block:: nim
+    ##    :test:
+    ##    
+    ##    import times  
+    ##    
+    ##    # Decide on your default value
+    ##    let DEFAULT_DATE = initDateTime(1, mJan, 2000, 0, 0, 0, 0)
+    ##    
+    ##    # Define a parser  
+    ##    proc parseDate(value: string): DateTime = parse(value, "YYYY-MM-dd")
+    ## 
+    ##    defineArg[DateTime](DateArg, newDateArg, "date", parseDate, DEFAULT_DATE)
+    ##    
+    ##    # We can now use newDateArg to define an argument that takes a date
+    ## 
+    ##    let spec = (
+    ##      date: newDateArg(@["<date>"], help="Date to change to")       
+    ##    )
+    ##    spec.parse(args="1999-12-31", "set-party-date")
+    ##    
+    ##    doAssert(spec.date.value == initDateTime(31, mDec, 1999, 0, 0, 0, 0))
+    type
+        TypeName {.inject.} = ref object of ValueArg
+            defaultVal: T
+            value*: T
+            values*: seq[T]
+            choices: seq[T]
+    
+    proc `cons`*(variants: seq[string], help: string, defaultVal: T = `defaultT`, choices = newSeq[T](), required=false, optional=false, multi=false): TypeName {.inject.} =
+        result = new(TypeName)
+        result.initArg(variants, help, defaultVal, choices, required, optional, multi)
+
+    method render_choices(arg: TypeName): string = 
+        arg.choices.join("|")
+    
+    method parse(arg: TypeName, value: string, variant: string) = 
+        try:
+            let parsed = parseT(value)
+            arg.check_choices(parsed, variant)
+            arg.value = parsed
+            arg.values.add(parsed)
+        except ValueError:
+            raise newException(ParseError, "Expected a " & name & " for " & variant & ", got: '" & value & "'")
+
+defineArg[bool](BoolArg, newBoolArg, "boolean", parseBool, false)
 
 method register*(arg: Arg, variant: string) {.base.} = 
     ## `register` is called by the parser when an argument is seen. If you want to interupt parsing
@@ -550,7 +601,12 @@ proc parse(specification: Specification, args: seq[string], command: string, sta
         # Subcommands are contained in the options, as soon as we see a 
         # subcommand we will switch to the subcommand parser
         while pos < len(args):
-            if args[pos] in specification.options: 
+            if args[pos]=="--":
+                pos += 1
+                while pos < len(args):
+                    positionals.add(args[pos])
+                    pos += 1
+            elif args[pos] in specification.options: 
                 let variant = args[pos]
                 let option = specification.options[variant]
                 pos += 1 
@@ -559,9 +615,19 @@ proc parse(specification: Specification, args: seq[string], command: string, sta
                     let alternatives = specification.alternatives[variant]
                     if alternatives.seen:
                         if alternatives.value != option:
-                            raise newException(ParseError, "Alternative to {variant} already seen")
+                            raise newException(ParseError, fmt"Alternative to {variant} already seen")
                     else:
                         alternatives.consume(option)
+            elif args[pos] =~ peg"\-\-\w\w+$" or args[pos] =~ peg"\-\w$":
+                raise newException(ParseError, fmt"Unrecognised option: {args[pos]}")
+            elif args[pos] =~ peg"\-\w\w+":
+                for letter in args[pos].substr(1):
+                    let variant = "-" & letter
+                    if variant notin specification.options:
+                        raise newException(ParseError, fmt"Unrecognised option: {variant} in {args[pos]}")
+                    let option = specification.options[variant]
+                    discard option.consume(@[], variant, 0, command)
+                pos += 1
             else:
                 positionals.add(args[pos])
                 pos += 1
@@ -633,6 +699,7 @@ proc parseOrMessage*(spec: tuple, prolog="", epilog="", args: string, command: s
         result = (false, getCurrentExceptionMsg())    
 
 when isMainModule:
+    import unittest
     
     suite "Greeter":
         setup:
@@ -792,39 +859,6 @@ Options:
                     destination: newStringArg(@["<file>"], help="Destination"),
                 )
                 parse(spec, args = @["from", "to"])
-
-
-    suite "grape":
-        ## Ideas for options shamelessly stolen from ripgrep / ag etc
-        setup:
-            let spec = (
-                pattern: newStringArg(@["<pattern>"], help="Regular expression pattern used for searching"),
-                target: newStringArg(@["<file>", "<path>"], help="A file or directory to search"),
-                version: newMessageArg(@["-v", "--version"], "0.1.0", help="Prints version"),
-                help: newHelpArg(),
-                recursive: newCountArg(@["-r", "--recursive"], help="Recurse into subdirectories"),
-                context: newIntArg(@["-C", "--context"], default=2, help="Number of lines of context to print"),
-                sensitivity: (
-                    insensitive: newCountArg(@["-i", "--ignore-case"], help="Case insensitive pattern matching"),
-                    smartcase: newCountArg(@["-S", "--smart-case"], help="Case insensitive pattern matching for lower case patterns, sensitive otherwise"),
-                    sensitive: newCountArg(@["-s", "--case-sensitive"], help="Case sensitive pattern matching"),
-                )
-            )
-
-        test "Check default values are populated":
-            parse(spec, args = "-S Pattern file.txt", command="grape")
-            check(spec.context.seen==false)
-            check(spec.context.value==2)
-    
-        test "Check alternatives can be detected":
-            parse(spec, args = "-S Pattern file.txt", command="grape")
-            check(spec.sensitivity.insensitive.seen==false)
-            check(spec.sensitivity.smartcase.seen==true)
-            check(spec.sensitivity.sensitive.seen==false)
-
-        test "Check alternatives only picked once":
-            expect(ParseError):
-                parse(spec, args="-s -S pattern file.txt", command="grape")
 
 
     suite "pal":

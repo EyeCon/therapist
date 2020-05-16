@@ -8,12 +8,21 @@ srcDir        = "src"
 bin           = @["therapist"]
 installExt    = @["nim"]
 
-from os import splitFile
+from os import splitFile, `/`
+import strformat
+
+after clean:
+    rmDir "build"
 
 task tests, "Runs the tests":
-    exec "nim c -r --hints:off src/therapist"
-    exec "nim rst2html README.rst"
-    exec "nim doc src/therapist"
+    selfExec "c --hints:off -r src/therapist"
+    selfExec "rst2html --hints:off --outdir:build/docs README.rst"
+    selfExec "doc --hints:off --outdir:build/docs src/therapist"
+    mkDir "build" / "tests"
+    for fname in listFiles("tests"):
+        let fileparts = splitFile(fname)
+        if fileparts.ext==".nim":
+            selfExec fmt"c --hints:off --outdir:build/tests -r {fname}"
 
 task docs, "Builds documentation":
     exec "nim doc src/therapist"
