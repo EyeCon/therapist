@@ -1,4 +1,5 @@
 
+import options
 import os
 import strformat
 import strutils
@@ -122,7 +123,7 @@ type
         ## User has requested help
         discard
 
-    SpecificationError* = object of ArgError
+    SpecificationError* = object of Defect
         ## Indicates an error in the specification. This error is thrown during the 
         ## creation of the parser specification and as such should not be seen by
         ## end users
@@ -160,14 +161,16 @@ proc newStringArg*(variants: seq[string], help: string, default = "", choices=ne
     ## 
     ## .. code-block:: nim
     ##      :test:
+    ##      import options
     ##      import unittest
+    ## 
     ##      let spec = (
     ##          src: newStringArg(@["<source>"], multi=true, help="Source file(s)"),
     ##          dst: newStringArg(@["<destination>"], help="Destination")
     ##      )
     ##      let (success, message) = parseOrMessage(spec, args="this and_this to_here", command="cp")
     ##      test "Message test":
-    ##          check(success)
+    ##          check(success and message.isNone)
     ##          check(spec.src.values == @["this", "and_this"])
     ##          check(spec.dst.value == "to_here")
     ## 
@@ -197,11 +200,14 @@ proc newFloatArg*(variants: seq[string], help: string, default = 0.0, choices=ne
     ## 
     ## .. code-block:: nim
     ##      :test:
+    ## 
+    ##      import options
+    ## 
     ##      let spec = (
     ##          number: newFloatArg(@["-f", "--float"], help="A fraction input")
     ##      )
     ##      let (success, message) = parseOrMessage(spec, args="-f 0.25", command="hello")
-    ##      doAssert success
+    ##      doAssert success and message.isNone
     ##      doAssert spec.number.seen
     ##      doAssert spec.number.value == 0.25
     result = new(FloatArg)
@@ -212,11 +218,14 @@ proc newIntArg*(variants: seq[string], help: string, default = 0, choices=newSeq
     ## 
     ## .. code-block:: nim
     ##      :test:
+    ## 
+    ##      import options
+    ## 
     ##      let spec = (
     ##          number: newIntArg(@["-n", "--number"], help="An integer input")
     ##      )
     ##      let (success, message) = parseOrMessage(spec, args="-n 10", command="hello")
-    ##      doAssert success
+    ##      doAssert success and message.isNone
     ##      doAssert spec.number.seen
     ##      doAssert spec.number.value == 10
     result = new(IntArg)
@@ -227,11 +236,14 @@ proc newCountArg*(variants: seq[string], help: string, default = 0, choices=newS
     ## 
     ## .. code-block:: nim
     ##      :test:
+    ## 
+    ##      import options
+    ## 
     ##      let spec = (
     ##          verbosity: newCountArg(@["-v", "--verbosity"], help="Verbosity")
     ##      )
     ##      let (success, message) = parseOrMessage(spec, args="-v -v -v", command="hello")
-    ##      doAssert success
+    ##      doAssert success and message.isNone
     ##      doAssert spec.verbosity.count == 3
     result = new(CountArg)
     initArg(result, variants, help, default, choices, required, optional, multi)
@@ -241,6 +253,7 @@ proc newHelpArg*(variants: seq[string], help: string): HelpArg =
     ## 
     ## .. code-block:: nim
     ##      :test:
+    ##      import options
     ##      import strutils
     ##      let spec = (
     ##          name: newStringArg(@["<name>"], help="Someone to greet"),
@@ -249,7 +262,7 @@ proc newHelpArg*(variants: seq[string], help: string): HelpArg =
     ##      )
     ##      let prolog = "Greet someone"
     ##      let (success, message) = parseOrMessage(spec, prolog=prolog, args="-h", command="hello")
-    ##      doAssert success
+    ##      doAssert success and message.isSome
     ##      let expected = """
     ##      Greet someone
     ## 
@@ -263,7 +276,7 @@ proc newHelpArg*(variants: seq[string], help: string): HelpArg =
     ##      Options:
     ##        -t, --times  How many times to greet them
     ##        -h, --help   Show a help message""".strip()
-    ##      doAssert message == expected
+    ##      doAssert message.get == expected
     result = new(HelpArg)
     result.variants = variants
     result.help = help
@@ -280,12 +293,14 @@ proc newMessageArg*(variants: seq[string], message: string, help: string): Messa
     ## 
     ## .. code-block:: nim
     ##      :test:
+    ##      import options
+    ## 
     ##      let vspec = (
     ##          version: newMessageArg(@["-v", "--version"], "0.1.0", help="Show the version")
     ##      )
     ##      let (success, message) = parseOrMessage(vspec, args="-v", command="hello")
-    ##      doAssert success
-    ##      doAssert message == "0.1.0"
+    ##      doAssert success and message.isSome
+    ##      doAssert message.get == "0.1.0"
     result = new(MessageArg)
     result.variants = variants
     result.message = message
@@ -655,6 +670,11 @@ proc parse(specification: Specification, args: seq[string], command: string, sta
         raise newException(MessageError, render_help(specification, command))
 
 proc parse*(specification: tuple, prolog="", epilog="", args: seq[string] = commandLineParams(), command = extractFilename(getAppFilename())) =
+    ## Attempts to parse the input. 
+    ##  - If the specification is incorrect (i.e. programmer error), `SpecificationError` is thrown
+    ##  - If the parse fails, `ParserError` is thrown
+    ##  - If the parse succeeds, but the user should be shown a message a `MessageError` is thrown 
+    ##  - Otherwise, the parse has suceeded
     parse(newSpecification(specification, prolog, epilog), args, command)
 
 proc parse*(specification: tuple, prolog="", epilog="", args: string, command = extractFilename(getAppFilename())) =
@@ -664,6 +684,8 @@ proc parse*(specification: tuple, prolog="", epilog="", args: string, command = 
     parse(specification, prolog, epilog, words, command)
 
 proc parseOrQuit*(spec: tuple, prolog="", epilog="", args: seq[string] = commandLineParams(), command = extractFilename(getAppFilename())) =
+    ## Attempts to parse the input. If the parse fails or the user has asked
+    ## for a message (e.g. help), show a message and quit
     try:
         parse(spec, prolog, epilog, args, command)
     except MessageError:
@@ -674,29 +696,33 @@ proc parseOrQuit*(spec: tuple, prolog="", epilog="", args: seq[string] = command
         quit(message, 1)
 
 proc parseOrQuit*(spec: tuple, prolog="", epilog="", args: string, command: string) =
-    ## Version of parseOrQuit which can be used for debugging
+    ## Version of `parseOrQuit` taking `args` as a `string` for sugar
     let (error, words) = shlex(args)
     if error:
         quit(fmt"Unable to split: {args}", 1)
     parseOrQuit(spec, prolog, epilog, words, command)
 
-proc parseOrMessage*(spec: tuple, prolog="", epilog="", args: seq[string] = commandLineParams(), command = extractFilename(getAppFilename())): tuple[success: bool, message: string] =
+proc parseOrMessage*(spec: tuple, prolog="", epilog="", args: seq[string] = commandLineParams(), command = extractFilename(getAppFilename())): tuple[success: bool, message: Option[string]] =
+    ## Version of `parse` that returns `success` if the parse was sucessful.
+    ## If the parse fails, or the result of the parse is an informationl message
+    ## for the user, `Option[str]` will containing an appropriate message
     try:
         parse(spec, prolog, epilog, args, command)
-        result = (true, "")
+        result = (true, none(string))
     except MessageError:
-        result = (true, getCurrentExceptionMsg())
+        result = (true, some(getCurrentExceptionMsg()))
     except ParseError:
-        result = (false, getCurrentExceptionMsg())   
+        result = (false, some(getCurrentExceptionMsg()))
 
-proc parseOrMessage*(spec: tuple, prolog="", epilog="", args: string, command: string): tuple[success: bool, message: string] =
+proc parseOrMessage*(spec: tuple, prolog="", epilog="", args: string, command: string): tuple[success: bool, message: Option[string]] =
+    ## Version of `parseOrMessage` that accepts `args` as a string for debugging sugar
     try:
         parse(spec, prolog, epilog, args, command)
-        result = (true, "")
+        result = (true, none(string))
     except MessageError:
-        result = (true, getCurrentExceptionMsg())
+        result = (true, some(getCurrentExceptionMsg()))
     except ParseError:
-        result = (false, getCurrentExceptionMsg())    
+        result = (false, some(getCurrentExceptionMsg()))
 
 when isMainModule:
     import unittest

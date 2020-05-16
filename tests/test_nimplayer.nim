@@ -1,4 +1,5 @@
 import ../src/therapist
+import options
 import strutils
 import unittest
 
@@ -17,7 +18,7 @@ suite "Nimplayer":
 
     test "Check help":
         let (success, message) = spec.parseOrMessage(args="-h", command="nimplayer")
-        check(success)
+        check(success and message.isSome)
         let expected = """
 Usage:
   nimplayer play <filename>
@@ -29,12 +30,11 @@ Commands:
 Options:
   -v, --verbose  Verbosity
   -h, --help     Show help message""".strip()
-        check(message==expected)
+        check(message.get==expected)
 
     test "Switch to the subcommand parser as soon as the command is seen":
         let (success, message) = spec.parseOrMessage(args="-v play -v -v rick.mp3", command="nimplayer")
-        check(success)
-        check(message=="")
+        check(success and message.isNone)
         check(spec.verbose.seen)
         check(spec.verbose.count==1)
         check(spec.play.seen)
@@ -43,8 +43,7 @@ Options:
 
     test "Short options can be repeated":
         let (success, message) = spec.parseOrMessage(args="-vv play rick.mp3", command="nimplayer")
-        check(success)
-        check(message=="")
+        check(success and message.isNone)
         check(spec.verbose.seen)
         check(spec.verbose.count==2)
     

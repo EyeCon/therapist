@@ -8,13 +8,14 @@ A simple to use, declarative, type-safe command line parser, striving for beauti
 A simple 'Hello world' example:
 
 .. code-block:: nim
-   :test:
 
    import therapist
+
+   # The parser is specified as a tuple
    let spec = (
-       # Name is an argument
+       # Name is a positional argument, by virtue of being surrounded by < and >
        name: newStringArg(@["<name>"], help="Person to greet"),
-       # --times will cause 0.1.0 to be printed
+       # --times is an optional argument, by virtue of starting with - and/or --
        times: newIntArg(@["-t", "--times"], default=1, help="How many times to greet"),
        # --version will cause 0.1.0 to be printed
        version: newMessageArg(@["--version"], "0.1.0", help="Prints version"),
@@ -56,8 +57,8 @@ this is in part because parser itself is stricter. For example, `--moored` is on
 will only appear in the help for that command, shown if you run `navel_fate mine --help`.
 
 .. code-block:: nim
-   :test:
 
+   import options
    import strutils
    import therapist
 
@@ -120,8 +121,8 @@ will only appear in the help for that command, shown if you run `navel_fate mine
    Options:
      -h, --help  Show help message""".strip()
 
-   doAssert success
-   doAssert message == expected
+   doAssert success and message.isSome
+   doAssert message.get == expected
 
 
 Many more examples are available in the source code and in the nimdoc for the various functions.
@@ -145,6 +146,13 @@ look like options or commands
 - `CountArg`'s short options may be coalesced together, but not options that taken an argument. i.e. `pal -vvv`
 going to give you some *really* verbose output
 - If you want to define a new value type `defineArg` is a template that will fill in the boilerplate for you
+
+Possible features therapist does not have
+-----------------------------------------
+
+- The ability to specify options in the form `--[no]color` such that `--color` sets the value to `true` 
+  and `--nocolor` to false
+- 
 
 Installation
 ------------
