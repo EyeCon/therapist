@@ -1,4 +1,6 @@
 import ../src/therapist
+import options
+import os
 import strformat
 import strutils
 import unittest
@@ -13,9 +15,9 @@ type
 
 let DEFAULT_DATE = initDateTime(1, mJan, 2000, 0, 0, 0, 0)
 
-proc newIsoDateArg*(variants: seq[string], help: string, defaultVal = DEFAULT_DATE, choices = newSeq[DateTime](), required=false, optional=false, multi=false): IsoDateArg =
+proc newIsoDateArg*(variants: seq[string], help: string, defaultVal = DEFAULT_DATE, choices = newSeq[DateTime](), required=false, optional=false, multi=false, env=""): IsoDateArg =
     result = new(IsoDateArg)
-    initArg(result, variants, help, defaultVal, choices, required, optional, multi)
+    initArg(result, variants, help, defaultVal, choices, required, optional, multi, env)
 
 method render_choices(arg: IsoDateArg): string = 
     arg.choices.join("|")
@@ -36,6 +38,9 @@ defineArg[DateTime](DateArg, newDateArg, "date", parseDate, DEFAULT_DATE)
 suite "grape":
     ## Ideas for options shamelessly stolen from ripgrep / ag etc
     setup:
+        let current = getEnv("PAGER")
+        putEnv("PAGER", "loads")
+
         let spec = (
             pattern: newStringArg(@["<pattern>"], help="Regular expression pattern used for searching"),
             target: newStringArg(@["<file>", "<path>"], help="A file or directory to search"),
@@ -43,6 +48,7 @@ suite "grape":
             help: newHelpArg(),
             recursive: newCountArg(@["-r", "--recursive"], help="Recurse into subdirectories"),
             context: newIntArg(@["-C", "--context"], default=2, help="Number of lines of context to print"),
+            pager: newStringArg(@["--pager"], env="PAGER", help="Pager to use to display output"),
             sensitivity: (
                 insensitive: newCountArg(@["-i", "--ignore-case"], help="Case insensitive pattern matching"),
                 smartcase: newCountArg(@["-S", "--smart-case"], help="Case insensitive pattern matching for lower case patterns, sensitive otherwise"),
@@ -51,6 +57,9 @@ suite "grape":
             modified: newIsoDateArg(@["-m", "--modified"], defaultVal=DEFAULT_DATE, help="Only review files modified since this date"),
             color: newBoolArg(@["-c", "--color", "--colour"], defaultVal=true, help="Whether to colorise output")
         )
+    
+    teardown:
+        putEnv("PAGER", current)
 
     test "Check default values are populated":
         parse(spec, args = "-S Pattern file.txt", command="grape")
@@ -76,8 +85,18 @@ suite "grape":
 
     test "Template-defined boolean type":
         let (success, message) = spec.parseOrMessage(args = "-c false corona news.txt", command="grape")
-        if not success:
-            echo message
-        check(success)
+        if not success or message.isSome:
+            echo message.get
+        check(success and message.isNone)
         check(spec.color.seen)
         check(spec.color.value == false)
+
+    test "Test environment variables can be used for values":
+        let (success, message) = spec.parseOrMessage(args = "corona news.txt", command="grape")
+        check(success and message.isNone)
+        check(spec.pager.value == "loads")
+            
+    test "Test environment variables are overwritten by values":
+        let (success, message) = spec.parseOrMessage(args = "--pager none corona news.txt", command="grape")
+        check(success and message.isNone)
+        check(spec.pager.value == "none")

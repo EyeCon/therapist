@@ -138,21 +138,34 @@ Notes on parsing
       - Commands (declared in variants as `command`) which start a subparser, which may take different
         options
 - Options may be interleved with arguments, so `markup input.txt -o output.html` is the same as
-`markup -o output.html input.txt`
+  `markup -o output.html input.txt`
+- If an argument has been seen `arg.seen` will return `true`. If not, it will be set to the default value,
+  unless an environment key has been provided (and the value is set in the environment), in which case
+  that is used
 - If a command is seen, parsing will switch to that command immediately. So in `pal --verbose push --force`,
-the base barser receives `--verbose`, and the `push` comamnd parser receives `--force`
+  the base barser receives `--verbose`, and the `push` comamnd parser receives `--force`
 - If `--` is seen, the remainder of the arguments will be taken to be positional arguments, even if they 
-look like options or commands
+  look like options or commands
 - `CountArg`'s short options may be coalesced together, but not options that taken an argument. i.e. `pal -vvv`
-going to give you some *really* verbose output
+  going to give you some *really* verbose output
 - If you want to define a new value type `defineArg` is a template that will fill in the boilerplate for you
 
 Possible features therapist does not have
 -----------------------------------------
 
+In *rough* order of likelihood of being added:
+
+- Automatically appending `[default: x]` to help messages
+- Displaying options that take values in the help as `--option <value>`
+- Groups, such that arguments / options are grouped under separate headings in the help message (see `grep`, which has
+  'Generic options', 'Matcher options' etc)
+- Ints and floats being limited to a range rather than a set of discrete values
 - The ability to specify options in the form `--[no]color` such that `--color` sets the value to `true` 
-  and `--nocolor` to false
-- 
+  and `--nocolor` to false; related, support for +w and -w to equate to `w=true` and `w=false`
+- Dependent option requirements i.e. because --optionA appears, --optionB is required
+- Support for alternate option characters (e.g. /) or different option semantics (e.g. java-style single - options)
+- Partial matches for `commands` i.e. `pal pus` is the same as `pal push`, if that is the only unambiguous match
+- Case insensitive matching
 
 Installation
 ------------

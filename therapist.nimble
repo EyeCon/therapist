@@ -25,7 +25,7 @@ task tests, "Runs the tests":
             selfExec fmt"c --hints:off --outdir:build/tests -r {fname}"
 
 task docs, "Builds documentation":
-    exec "nim doc src/therapist"
+    exec "nim doc --hints:off --outdir: build/docs src/therapist"
 
 task clean, "Clean up generated binaries, css and html files":
     for fname in listFiles(getCurrentDir()):

@@ -54,13 +54,15 @@ const INDENT = spaces(INDENT_WIDTH)
 
 type
 
-    Arg = ref object of RootObj
+    Arg* = ref object of RootObj
+        ## Base class for arguments
         variants: seq[string]
         help: string
         count*: int ## How many times the argument was seen
         required: bool
         optional: bool
         multi: bool
+        env: string
     ValueArg* = ref object of Arg
         ## Base class for arguments that take a value
         discard
@@ -124,7 +126,7 @@ type
         discard
 
     SpecificationError* = object of Defect
-        ## Indicates an error in the specification. This error is thrown during the 
+        ## Indicates an error in the specification. This error is thrown during the
         ## creation of the parser specification and as such should not be seen by
         ## end users
         discard
@@ -139,24 +141,34 @@ proc newSpecification(spec: tuple, prolog: string, epilog: string): Specificatio
 
 proc parse(specification: Specification, args: seq[string], command: string, start=0)
 
-func initArg*[A, T](arg: var A, variants: seq[string], help: string, defaultVal: T, choices: seq[T], required: bool, optional: bool, multi: bool) =
+method parse*(arg: Arg, value: string, variant: string) {.base.} = 
+    ## `parse` is called when a value is seen for an argument. If you 
+    ## write your own `Arg` you will need to provide a `parse` implementation. If the
+    ## value cannot be parsed, a `ParseError` is raised with a user-friendly explanation
+    raise newException(ValueError, &"Parse not implemented for {$type(arg)}")
+
+proc initArg*[A, T](arg: var A, variants: seq[string], help: string, defaultVal: T, choices: seq[T], required: bool, optional: bool, multi: bool, env: string) =
     ## If you define your own ValueArg, you can call this function to initialise it
     arg.variants = variants
-    when A is CountArg:
-        arg.count = defaultVal
-    else:
-        arg.value = defaultVal
-        arg.values = newSeq[T]()
+    arg.env = env
     arg.choices = choices
     arg.defaultVal = defaultVal
     arg.help = help
     arg.required = required
     arg.optional = optional
     arg.multi = multi
+    when A is CountArg:
+        arg.count = defaultVal
+    else:
+        if len(env)>0 and existsEnv(env):
+            arg.parse(string(getEnv(env)), env)
+        else:
+            arg.value = defaultVal
+        arg.values = newSeq[T]()
     if required and optional:
         raise newException(SpecificationError, "Arguments can be required or optional not both")
 
-proc newStringArg*(variants: seq[string], help: string, default = "", choices=newSeq[string](), required=false, optional=false, multi=false): StringArg =
+proc newStringArg*(variants: seq[string], help: string, default = "", choices=newSeq[string](), required=false, optional=false, multi=false, env=""): StringArg =
     ## Creates a new Arg. 
     ## 
     ## .. code-block:: nim
@@ -193,9 +205,9 @@ proc newStringArg*(variants: seq[string], help: string, default = "", choices=ne
     ## 
     ## 
     result = new(StringArg)
-    initArg(result, variants, help, default, choices, required, optional, multi)
+    initArg(result, variants, help, default, choices, required, optional, multi, env)
 
-proc newFloatArg*(variants: seq[string], help: string, default = 0.0, choices=newSeq[float](), required=false, optional=false, multi=false): FloatArg =
+proc newFloatArg*(variants: seq[string], help: string, default = 0.0, choices=newSeq[float](), required=false, optional=false, multi=false, env=""): FloatArg =
     ## A `FloatArg` takes a float value
     ## 
     ## .. code-block:: nim
@@ -211,9 +223,9 @@ proc newFloatArg*(variants: seq[string], help: string, default = 0.0, choices=ne
     ##      doAssert spec.number.seen
     ##      doAssert spec.number.value == 0.25
     result = new(FloatArg)
-    initArg(result, variants, help, default, choices, required, optional, multi)
+    initArg(result, variants, help, default, choices, required, optional, multi, env)
 
-proc newIntArg*(variants: seq[string], help: string, default = 0, choices=newSeq[int](), required=false, optional=false, multi=false): IntArg =
+proc newIntArg*(variants: seq[string], help: string, default = 0, choices=newSeq[int](), required=false, optional=false, multi=false, env=""): IntArg =
     ## An `IntArg` takes an integer value
     ## 
     ## .. code-block:: nim
@@ -229,9 +241,9 @@ proc newIntArg*(variants: seq[string], help: string, default = 0, choices=newSeq
     ##      doAssert spec.number.seen
     ##      doAssert spec.number.value == 10
     result = new(IntArg)
-    initArg(result, variants, help, default, choices, required, optional, multi)
+    initArg(result, variants, help, default, choices, required, optional, multi, env)
 
-proc newCountArg*(variants: seq[string], help: string, default = 0, choices=newSeq[int](), required=false, optional=false, multi=true): CountArg =
+proc newCountArg*(variants: seq[string], help: string, default = 0, choices=newSeq[int](), required=false, optional=false, multi=true, env=""): CountArg =
     ## A `CountArg` counts how many times it has been seen
     ## 
     ## .. code-block:: nim
@@ -246,7 +258,7 @@ proc newCountArg*(variants: seq[string], help: string, default = 0, choices=newS
     ##      doAssert success and message.isNone
     ##      doAssert spec.verbosity.count == 3
     result = new(CountArg)
-    initArg(result, variants, help, default, choices, required, optional, multi)
+    initArg(result, variants, help, default, choices, required, optional, multi, env)
 
 proc newHelpArg*(variants: seq[string], help: string): HelpArg =
     ## If a help arg is seen, a help message will be shown
@@ -482,12 +494,6 @@ proc render_help(spec: Specification, command: string): string =
 
     result = fmt"""{prolog}{usage}{commands}{arguments}{options}{epilog}""".strip()
 
-method parse*(arg: Arg, value: string, variant: string) {.base.} = 
-    ## `parse` is called when a value is seen for an argument. If you 
-    ## write your own `Arg` you will need to provide a `parse` implementation. If the
-    ## value cannot be parsed, a `ParseError` is raised with a user-friendly explanation
-    raise newException(ValueError, &"Parse not implemented for {$type(arg)}")
-
 template check_choices*[T](arg: Arg, value: T, variant: string) {.inject.} = 
     ## `check_choices` checks that `value` has been set to one of the acceptable `choices` values
     if len(arg.choices)>0 and not (value in arg.choices):
@@ -550,9 +556,9 @@ template defineArg*[T](TypeName: untyped, cons: untyped, name: string, parseT: p
             values*: seq[T]
             choices: seq[T]
     
-    proc `cons`*(variants: seq[string], help: string, defaultVal: T = `defaultT`, choices = newSeq[T](), required=false, optional=false, multi=false): TypeName {.inject.} =
+    proc `cons`*(variants: seq[string], help: string, defaultVal: T = `defaultT`, choices = newSeq[T](), required=false, optional=false, multi=false, env=""): TypeName {.inject.} =
         result = new(TypeName)
-        result.initArg(variants, help, defaultVal, choices, required, optional, multi)
+        result.initArg(variants, help, defaultVal, choices, required, optional, multi, env)
 
     method render_choices(arg: TypeName): string = 
         arg.choices.join("|")
