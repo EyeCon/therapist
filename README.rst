@@ -156,7 +156,7 @@ Possible features therapist does not have
 In *rough* order of likelihood of being added:
 
 - Automatically appending `[default: x]` to help messages
-- Support for `--option=<value>` syntax and `-o<value>` syntax
+- Support for `-o<value>` syntax
 - Support for a `FileArg` argument type which checks that a path does/does not exist
 - 'Hidden' arguments (so you can have `--help` and `--extended-help`)
 - Groups, such that arguments / options are grouped under separate headings in the help message (see `grep`, which has

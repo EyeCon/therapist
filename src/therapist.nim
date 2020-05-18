@@ -18,6 +18,15 @@ let OPTION_VARIANT_FORMAT = peg"""
         longOption <- prefix prefix {\w (\w / prefix)*}
     """
 
+let OPTION_VALUE_FORMAT = peg"""
+        option <- ^ {(shortOption / longOption)} equals {value}
+        prefix <- '\-'
+        shortOption <- prefix \w
+        longOption <- prefix prefix \w (\w / prefix)*
+        equals <- '=' / ':'
+        value <- _+
+    """
+
 let ARGUMENT_VARIANT_FORMAT = peg"""
         argument <- ^ left_bracket word right_bracket $
         left_bracket <- '\<'
@@ -124,7 +133,6 @@ type
         optionList: seq[Arg]
         argumentList: seq[Arg]
         commandList: seq[CommandArg]
-
 
     ArgError* = object of CatchableError 
         ## Base Exception for module
@@ -307,7 +315,7 @@ proc newHelpArg*(variants: seq[string], help: string): HelpArg =
     ##        <name>           Someone to greet
     ##      
     ##      Options:
-    ##        -t, --times <n>  How many times to greet them
+    ##        -t, --times=<n>  How many times to greet them
     ##        -h, --help       Show a help message""".strip()
     ##      doAssert message.get == expected
     result = new(HelpArg)
@@ -485,7 +493,7 @@ proc render_help(spec: Specification, command: string): string =
     for argument in spec.argumentList:
         variant_width = max(variant_width, len(argument.variants.join(", ")))
     for option in spec.optionList:
-        let helpVar = if len(option.helpVar)>0: " " & option.helpVar else: ""
+        let helpVar = if len(option.helpVar)>0: "=" & option.helpVar else: ""
         variant_width = max(variant_width, len(option.variants.join(", ") & helpVar))
     
     let help_indent = INDENT_WIDTH + variant_width + INDENT_WIDTH
@@ -510,7 +518,7 @@ proc render_help(spec: Specification, command: string): string =
         lines = @["\n\nOptions:"]
         for option in spec.optionList:
             let help = wrapWords(option.help, help_width).indent(help_indent).strip()
-            let helpVar = if len(option.helpVar)>0: " " & option.helpVar else: ""
+            let helpVar = if len(option.helpVar)>0: "=" & option.helpVar else: ""
             lines.add(INDENT & alignLeft(option.variants.join(", ") & helpVar, variant_width) & INDENT & help)
     let options = lines.join("\n")
 
@@ -649,6 +657,7 @@ proc parse(specification: Specification, args: seq[string], command: string, sta
         # First, sift out options - what's left are the positionals
         # Subcommands are contained in the options, as soon as we see a 
         # subcommand we will switch to the subcommand parser
+        var option_value: array[2, string]
         while pos < len(args):
             if args[pos]=="--":
                 pos += 1
@@ -667,6 +676,13 @@ proc parse(specification: Specification, args: seq[string], command: string, sta
                             raise newException(ParseError, fmt"Alternative to {variant} already seen")
                     else:
                         alternatives.consume(option)
+            elif args[pos].match(OPTION_VALUE_FORMAT, option_value):
+                if option_value[0] notin specification.options:
+                    raise newException(ParseError, fmt"Unrecognised option: {option_value[0]}")
+                let variant = option_value[0]
+                let option = specification.options[variant]
+                pos += 1 
+                discard option.consume(@[option_value[1]], variant, 0, command)
             elif args[pos] =~ peg"\-\-\w\w+$" or args[pos] =~ peg"\-\w$":
                 raise newException(ParseError, fmt"Unrecognised option: {args[pos]}")
             elif args[pos] =~ peg"\-\w\w+":
@@ -809,7 +825,7 @@ Options:
             )
 
         test "Basic parsing":
-            parse(spec, args = @["-r", "from", "to", "-n", "42", "--float", "0.5", "-v", "-v", "-v"], command="cp")
+            parse(spec, args = "-r from to -n=42 --float:0.5 -v -v -v", command="cp")
             check(spec.recursive.seen)
             check(spec.number.seen)
             check(spec.number.value==42)
@@ -852,8 +868,8 @@ Options:
   --version          Prints version. Hopefully will be in semver format, but
                      then does that really make sense for a copy command?
   -r, --recursive    Recurse into subdirectories
-  -n, --number <n>   Max number of files to copy
-  -f, --float <pct>  Max percentage of hard drive
+  -n, --number=<n>   Max number of files to copy
+  -f, --float=<pct>  Max percentage of hard drive
   -v, --verbose      Verbosity (can be repeated)
   -h, --help         Show help message
 """.strip()
