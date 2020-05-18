@@ -68,6 +68,3 @@ Options:
         check(spec.play.seen)
         check(playspec.filename.seen)
         check(playspec.filename.value=="-v")
-
-
-    

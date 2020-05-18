@@ -1,6 +1,6 @@
 
-import options
 import os
+import options
 import strformat
 import strutils
 import tables
@@ -10,6 +10,20 @@ import std/wordwrap
 
 const INDENT_WIDTH = 2
 const INDENT = spaces(INDENT_WIDTH)
+
+let OPTION_VARIANT_FORMAT = peg"""
+        option <- ^ (shortOption / longOption) $
+        prefix <- '\-'
+        shortOption <- prefix {\w}
+        longOption <- prefix prefix {\w (\w / prefix)*}
+    """
+
+let ARGUMENT_VARIANT_FORMAT = peg"""
+        argument <- ^ left_bracket word right_bracket $
+        left_bracket <- '\<'
+        right_bracket <- '\>'
+        word <- \ident
+    """
 
 ## Are you struggling with Arguments? Then you need therapist, a type-safe argument 
 ## parser aiming for simplicity and minimal magic.
@@ -63,6 +77,7 @@ type
         optional: bool
         multi: bool
         env: string
+        helpVar: string
     ValueArg* = ref object of Arg
         ## Base class for arguments that take a value
         discard
@@ -147,8 +162,10 @@ method parse*(arg: Arg, value: string, variant: string) {.base.} =
     ## value cannot be parsed, a `ParseError` is raised with a user-friendly explanation
     raise newException(ValueError, &"Parse not implemented for {$type(arg)}")
 
-proc initArg*[A, T](arg: var A, variants: seq[string], help: string, defaultVal: T, choices: seq[T], required: bool, optional: bool, multi: bool, env: string) =
-    ## If you define your own ValueArg, you can call this function to initialise it
+proc initArg*[A, T](arg: var A, variants: seq[string], help: string, defaultVal: T, choices: seq[T], helpVar="", required: bool, optional: bool, multi: bool, env: string) =
+    ## If you define your own `ValueArg` type, you can call this function to initialise it. It copies the parameter values to the `ValueArg` object
+    ## and initialises the `value` field with either the value from the `env` environment key (if supplied and if the key is present in the environment)
+    ## or `defaultVal`
     arg.variants = variants
     arg.env = env
     arg.choices = choices
@@ -165,10 +182,11 @@ proc initArg*[A, T](arg: var A, variants: seq[string], help: string, defaultVal:
         else:
             arg.value = defaultVal
         arg.values = newSeq[T]()
+        arg.helpVar = helpVar
     if required and optional:
         raise newException(SpecificationError, "Arguments can be required or optional not both")
 
-proc newStringArg*(variants: seq[string], help: string, default = "", choices=newSeq[string](), required=false, optional=false, multi=false, env=""): StringArg =
+proc newStringArg*(variants: seq[string], help: string, default = "", choices=newSeq[string](), helpvar="", required=false, optional=false, multi=false, env=""): StringArg =
     ## Creates a new Arg. 
     ## 
     ## .. code-block:: nim
@@ -188,13 +206,16 @@ proc newStringArg*(variants: seq[string], help: string, default = "", choices=ne
     ## 
     ## - `variants` determines how the Arg is presented to the user and whether the arg is a positional 
     ##   argument (Argument) or an optional argument (Option)
-    ##     - Options take the form `-o` or `--option` (default to `optional`)
-    ##     - Arguments take the form `<value>` (default to `required`)
+    ##     - Options take the form `-o` or `--option` (default to `optional` - override with `required=true`)
+    ##     - Arguments take the form `<value>` (default to `required` - override wiith `optional=true`)
+    ##     - Commands take the form `command`
     ## - `help` is a short form help message to explain what the argument does
     ## - `default` is a default value
     ## - `choices` is a set of allowed values for the argument
+    ## - `helpvar` is a dummy variable name shown to the user in the help message for`ValueArg` (i.e. `--option <helpvar>`). 
+    ##   Defaults to the longest supplied variant
     ## - `required` implies that an optional argument must appear or parsing will fail
-    ## - `optional` implies that an positional argument does not have appear
+    ## - `optional` implies that a positional argument does not have to appear
     ## - `multi` implies that an Option may appear multiple times or an Argument consume multiple values
     ## 
     ## Notes:
@@ -205,9 +226,9 @@ proc newStringArg*(variants: seq[string], help: string, default = "", choices=ne
     ## 
     ## 
     result = new(StringArg)
-    initArg(result, variants, help, default, choices, required, optional, multi, env)
+    initArg(result, variants, help, default, choices, helpvar, required, optional, multi, env)
 
-proc newFloatArg*(variants: seq[string], help: string, default = 0.0, choices=newSeq[float](), required=false, optional=false, multi=false, env=""): FloatArg =
+proc newFloatArg*(variants: seq[string], help: string, default = 0.0, choices=newSeq[float](), helpvar="", required=false, optional=false, multi=false, env=""): FloatArg =
     ## A `FloatArg` takes a float value
     ## 
     ## .. code-block:: nim
@@ -223,9 +244,9 @@ proc newFloatArg*(variants: seq[string], help: string, default = 0.0, choices=ne
     ##      doAssert spec.number.seen
     ##      doAssert spec.number.value == 0.25
     result = new(FloatArg)
-    initArg(result, variants, help, default, choices, required, optional, multi, env)
+    initArg(result, variants, help, default, choices, helpvar, required, optional, multi, env)
 
-proc newIntArg*(variants: seq[string], help: string, default = 0, choices=newSeq[int](), required=false, optional=false, multi=false, env=""): IntArg =
+proc newIntArg*(variants: seq[string], help: string, default = 0, choices=newSeq[int](), helpvar="", required=false, optional=false, multi=false, env=""): IntArg =
     ## An `IntArg` takes an integer value
     ## 
     ## .. code-block:: nim
@@ -241,7 +262,7 @@ proc newIntArg*(variants: seq[string], help: string, default = 0, choices=newSeq
     ##      doAssert spec.number.seen
     ##      doAssert spec.number.value == 10
     result = new(IntArg)
-    initArg(result, variants, help, default, choices, required, optional, multi, env)
+    initArg(result, variants, help, default, choices, helpvar, required, optional, multi, env)
 
 proc newCountArg*(variants: seq[string], help: string, default = 0, choices=newSeq[int](), required=false, optional=false, multi=true, env=""): CountArg =
     ## A `CountArg` counts how many times it has been seen
@@ -258,7 +279,7 @@ proc newCountArg*(variants: seq[string], help: string, default = 0, choices=newS
     ##      doAssert success and message.isNone
     ##      doAssert spec.verbosity.count == 3
     result = new(CountArg)
-    initArg(result, variants, help, default, choices, required, optional, multi, env)
+    initArg(result, variants, help, default, choices, helpvar="", required, optional, multi, env)
 
 proc newHelpArg*(variants: seq[string], help: string): HelpArg =
     ## If a help arg is seen, a help message will be shown
@@ -269,7 +290,7 @@ proc newHelpArg*(variants: seq[string], help: string): HelpArg =
     ##      import strutils
     ##      let spec = (
     ##          name: newStringArg(@["<name>"], help="Someone to greet"),
-    ##          times: newIntArg(@["-t", "--times"], help="How many times to greet them"),
+    ##          times: newIntArg(@["-t", "--times"], help="How many times to greet them", helpvar="n"),
     ##          help: newHelpArg(@["-h", "--help"], help="Show a help message"),
     ##      )
     ##      let prolog = "Greet someone"
@@ -283,11 +304,11 @@ proc newHelpArg*(variants: seq[string], help: string): HelpArg =
     ##        hello -h|--help
     ##      
     ##      Arguments:
-    ##        <name>       Someone to greet
+    ##        <name>           Someone to greet
     ##      
     ##      Options:
-    ##        -t, --times  How many times to greet them
-    ##        -h, --help   Show a help message""".strip()
+    ##        -t, --times <n>  How many times to greet them
+    ##        -h, --help       Show a help message""".strip()
     ##      doAssert message.get == expected
     result = new(HelpArg)
     result.variants = variants
@@ -332,32 +353,30 @@ proc addArg(specification: Specification, variable: string, arg: Arg) =
         raise newException(SpecificationError, "All arguments must have at least one variant: " & variable)
     let first = arg.variants[0]
 
-    let optionFormat = peg"""
-        option <- ^ (shortOption / longOption) $
-        prefix <- '\-'
-        shortOption <- prefix \w
-        longOption <- prefix prefix \w (\w / prefix)* 
-    """
-    
-    let argumentFormat = peg """
-        argument <- ^ left_bracket word right_bracket $
-        left_bracket <- '\<'
-        right_bracket <- '\>'
-        word <- \ident
-    """
-
     if first.startsWith('-'):
         specification.optionList.add(arg)
+        var matches: array[1, string]
+        var helpVar = ""
         for variant in arg.variants:
             if variant in specification.options:
                 raise newException(SpecificationError, fmt"Option {variant} defined twice")
-            if not (variant =~ optionFormat):
+            if not variant.match(OPTION_VARIANT_FORMAT, matches):
                 raise newException(SpecificationError, fmt"Option {variant} must be in the form -o or --option")
             specification.options[variant] = arg
+            if len(matches[0]) > len(helpVar):
+                helpVar = matches[0]
+        if arg of ValueArg:
+            # We only want to display a meta var for args that take a value
+            if len(arg.helpVar)==0:
+                arg.helpVar = fmt"<{helpVar}>"
+            else:
+                arg.helpVar = fmt"<{arg.helpVar}>"
+
+
     elif first.startsWith('<'):
         specification.argumentList.add(arg)
         for variant in arg.variants:
-            if variant =~ argumentFormat:
+            if variant =~ ARGUMENT_VARIANT_FORMAT:
                 if variant in specification.arguments:
                     raise newException(SpecificationError, "Argument {variant} defined twice")
                 specification.arguments[variant] = arg 
@@ -377,7 +396,6 @@ proc newSpecification(spec: tuple, prolog: string, epilog: string): Specificatio
     ## - Create a mapping of variants to options & arguments so we know if we've seen one
     ## - Create a mapping of variants to alternatives so that we know if we've seen an alternative
     ## - Create a list of options & arguments so that we can list them in the help text
-    
     result = new(Specification)
     result.arguments = newOrderedTable[string, Arg]()
     result.options = newOrderedTable[string, Arg]()
@@ -415,6 +433,9 @@ method render_choices(arg: IntArg): string =
     arg.choices.join("|")
 
 proc render_usage(spec: Specification, command: string, lines: var seq[string]) =
+    ## Returns an indented list of strings showing usage examples, e.g
+    ##   prog command <command_arg>
+    ##   prog <arg1> <arg2>
     if len(spec.commandList)>0:
         # If we have a list of commands, use them
         for subcommand in spec.commandList:
@@ -432,7 +453,7 @@ proc render_usage(spec: Specification, command: string, lines: var seq[string]) 
                 else:
                     example &= fmt" ({choices})"
             else:
-                # Arguments that have open values will be rendered as [<x>|<y>] or (<x>|<y>)
+                # Arguments that have multilple variants will be rendered as [<x>|<y>] or (<x>|<y>)
                 let variants = arg.variants.join("|")
                 if arg.optional:
                     example &= fmt" [{variants}]"
@@ -447,6 +468,7 @@ proc render_usage(spec: Specification, command: string, lines: var seq[string]) 
 
 proc render_help(spec: Specification, command: string): string =
     var lines = @["Usage:"]
+    # Fetch a list of usage examples
     spec.render_usage(command, lines)
     # Only include options in usage for the main parser
     for option in spec.optionList:
@@ -454,15 +476,17 @@ proc render_help(spec: Specification, command: string): string =
             let example = INDENT & command & " " & option.variants.join("|")
             lines.add(example)
     let usage = lines.join("\n")
+    
     let max_width = 80
-
     var variant_width = 0
+    # Find the widest command/argument/option example so we can ensure that the help texts all line up
     for cmd in spec.argumentList:
         variant_width = max(variant_width, len(cmd.variants.join(", ")))
     for argument in spec.argumentList:
         variant_width = max(variant_width, len(argument.variants.join(", ")))
     for option in spec.optionList:
-        variant_width = max(variant_width, len(option.variants.join(", ")))
+        let helpVar = if len(option.helpVar)>0: " " & option.helpVar else: ""
+        variant_width = max(variant_width, len(option.variants.join(", ") & helpVar))
     
     let help_indent = INDENT_WIDTH + variant_width + INDENT_WIDTH
     let help_width = max_width - help_indent
@@ -486,7 +510,8 @@ proc render_help(spec: Specification, command: string): string =
         lines = @["\n\nOptions:"]
         for option in spec.optionList:
             let help = wrapWords(option.help, help_width).indent(help_indent).strip()
-            lines.add(INDENT & alignLeft(option.variants.join(", "), variant_width) & INDENT & help)
+            let helpVar = if len(option.helpVar)>0: " " & option.helpVar else: ""
+            lines.add(INDENT & alignLeft(option.variants.join(", ") & helpVar, variant_width) & INDENT & help)
     let options = lines.join("\n")
 
     let prolog = if len(spec.prolog)>0: wrapWords(spec.prolog, max_width) & "\n\n" else: spec.prolog
@@ -526,7 +551,8 @@ method parse(arg: StringArg, value: string, variant: string) =
 template defineArg*[T](TypeName: untyped, cons: untyped, name: string, parseT: proc (value: string): T, defaultT: T) =
     ## `defineArg` is a concession to the power of magic. If you want to define your own `ValueArg` for type T,
     ## you simply need to pass in a method that is able to parse a string into a T and a sensible default value
-    ## default(T) is often a good bet, but is not defined for all types. Beware, the error messages can get gnarly
+    ## default(T) is often a good bet, but is not defined for all types. Beware, the error messages can get gnarly,
+    ## and generated docstrings will be ugly
     ## 
     ## .. code-block:: nim
     ##    :test:
@@ -550,15 +576,16 @@ template defineArg*[T](TypeName: untyped, cons: untyped, name: string, parseT: p
     ##    
     ##    doAssert(spec.date.value == initDateTime(31, mDec, 1999, 0, 0, 0, 0))
     type
-        TypeName {.inject.} = ref object of ValueArg
+        TypeName* {.inject.} = ref object of ValueArg
             defaultVal: T
             value*: T
             values*: seq[T]
             choices: seq[T]
     
-    proc `cons`*(variants: seq[string], help: string, defaultVal: T = `defaultT`, choices = newSeq[T](), required=false, optional=false, multi=false, env=""): TypeName {.inject.} =
+    proc cons*(variants: seq[string], help: string, defaultVal: T = defaultT, choices = newSeq[T](), helpvar="", required=false, optional=false, multi=false, env=""): TypeName =
+        ## Template-defined constructor - see help for `newStringArg` for the meaning of parameters
         result = new(TypeName)
-        result.initArg(variants, help, defaultVal, choices, required, optional, multi, env)
+        result.initArg(variants, help, defaultVal, choices, helpvar, required, optional, multi, env)
 
     method render_choices(arg: TypeName): string = 
         arg.choices.join("|")
@@ -596,6 +623,7 @@ func seen*(arg: Arg): bool =
     arg.count > 0
 
 proc consume(arg: Arg, args: seq[string], variant: string, pos: int, command: string): int =
+    # Consume an argument. ValueArgs consume one argument at a time, Commands consume all the remaining arguments
     arg.register(variant)
     if arg of ValueArg:
         if pos < len(args):
@@ -772,8 +800,8 @@ Options:
             let spec = (
                 version: newMessageArg(@["--version"], "0.1.0", help="Prints version. Hopefully will be in semver format, but then does that really make sense for a copy command?"),
                 recursive: newCountArg(@["-r", "--recursive"], help="Recurse into subdirectories"),
-                number: newIntArg(@["-n", "--number"], help="Max number of files to copy"),
-                float: newFloatArg(@["-f", "--float"], help="Max percentage of hard drive"),
+                number: newIntArg(@["-n", "--number"], help="Max number of files to copy", helpvar="n"),
+                float: newFloatArg(@["-f", "--float"], help="Max percentage of hard drive", helpvar="pct"),
                 verbosity: newCountArg(@["-v", "--verbose"], help="Verbosity (can be repeated)"),
                 src: newStringArg(@["<source>"], multi=true, help="Source"),
                 dest: newStringArg(@["<destination>"], help="Destination"),
@@ -817,17 +845,17 @@ Usage:
   cp -h|--help
 
 Arguments:
-  <source>         Source
-  <destination>    Destination
+  <source>           Source
+  <destination>      Destination
 
 Options:
-  --version        Prints version. Hopefully will be in semver format, but then
-                   does that really make sense for a copy command?
-  -r, --recursive  Recurse into subdirectories
-  -n, --number     Max number of files to copy
-  -f, --float      Max percentage of hard drive
-  -v, --verbose    Verbosity (can be repeated)
-  -h, --help       Show help message
+  --version          Prints version. Hopefully will be in semver format, but
+                     then does that really make sense for a copy command?
+  -r, --recursive    Recurse into subdirectories
+  -n, --number <n>   Max number of files to copy
+  -f, --float <pct>  Max percentage of hard drive
+  -v, --verbose      Verbosity (can be repeated)
+  -h, --help         Show help message
 """.strip()
                 check(message==expected)
 

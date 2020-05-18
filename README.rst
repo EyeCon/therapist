@@ -1,7 +1,7 @@
 Therapist
 =========
 
-A simple to use, declarative, type-safe command line parser, striving for beautiful help messages.
+A simple to use, declarative, type-safe command line parser, with beautiful help messages.
 
 .. image:: https://img.shields.io/bitbucket/pipelines/maxgrenderjones/therapist
 
@@ -125,19 +125,19 @@ will only appear in the help for that command, shown if you run `navel_fate mine
    doAssert message.get == expected
 
 
-Many more examples are available in the source code and in the nimdoc for the various functions.
+Many more examples are available in the source code and in the nimdoc_ for the various functions.
 
 Notes on parsing
 ----------------
 
 - There are three types of argument:
-      - Positional Arguments (declared in variants as `<value>`) whose value is determined by the order 
-        of arguments provided
-      - Optional Arguments (declared in variants as `-o` or `--option`) which may take an argument or 
-        simply be counted
-      - Commands (declared in variants as `command`) which start a subparser, which may take different
-        options
-- Options may be interleved with arguments, so `markup input.txt -o output.html` is the same as
+    - Positional Arguments (declared in variants as `<value>`) whose value is determined by the order 
+      of arguments provided
+    - Optional Arguments (declared in variants as `-o` or `--option`) which may take an argument or 
+      simply be counted
+    - Commands (declared in variants as `command`) which start a subparser, which may take different
+      options
+- Options may be interleaved with arguments, so `markup input.txt -o output.html` is the same as
   `markup -o output.html input.txt`
 - If an argument has been seen `arg.seen` will return `true`. If not, it will be set to the default value,
   unless an environment key has been provided (and the value is set in the environment), in which case
@@ -156,12 +156,16 @@ Possible features therapist does not have
 In *rough* order of likelihood of being added:
 
 - Automatically appending `[default: x]` to help messages
-- Displaying options that take values in the help as `--option <value>`
+- Support for `--option=<value>` syntax and `-o<value>` syntax
+- Support for a `FileArg` argument type which checks that a path does/does not exist
+- 'Hidden' arguments (so you can have `--help` and `--extended-help`)
 - Groups, such that arguments / options are grouped under separate headings in the help message (see `grep`, which has
   'Generic options', 'Matcher options' etc)
 - Ints and floats being limited to a range rather than a set of discrete values
+- The ability to ask for input, e.g. `-p` causes a password prompt to appear
 - The ability to specify options in the form `--[no]color` such that `--color` sets the value to `true` 
   and `--nocolor` to false; related, support for +w and -w to equate to `w=true` and `w=false`
+- Integration with `bash` / `fish` completion scripts
 - Dependent option requirements i.e. because --optionA appears, --optionB is required
 - Support for alternate option characters (e.g. /) or different option semantics (e.g. java-style single - options)
 - Partial matches for `commands` i.e. `pal pus` is the same as `pal push`, if that is the only unambiguous match
@@ -188,3 +192,4 @@ If you want to explore alternatives, you might like to look at:
 
 .. _nim-argparse: https://github.com/iffy/nim-argparse
 .. _docopt.nim: https://github.com/docopt/docopt.nim
+.. _nimdoc: https://maxgrenderjones.bitbucket.io/therapist/therapist.html
