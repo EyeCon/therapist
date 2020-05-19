@@ -25,7 +25,8 @@ task tests, "Runs the tests":
             selfExec fmt"c --hints:off --outdir:build/tests -r {fname}"
 
 task docs, "Builds documentation":
-    exec "nim doc --hints:off --outdir: build/docs src/therapist"
+    selfExec "doc --hints:off --outdir:build/docs src/therapist"
+    selfExec "rst2html --hints:off --outdir:build/docs README.rst"
 
 task clean, "Clean up generated binaries, css and html files":
     for fname in listFiles(getCurrentDir()):
@@ -37,4 +38,3 @@ task clean, "Clean up generated binaries, css and html files":
 # Dependencies
 
 requires "nim >= 1.0.0"
-requires "shlex >= 0.1.0"

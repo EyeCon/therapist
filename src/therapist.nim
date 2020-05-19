@@ -1,41 +1,16 @@
 
 import os
 import options
+import pegs
 import strformat
 import strutils
 import tables
-import pegs
-import shlex
 import std/wordwrap
+import uri
 
-const INDENT_WIDTH = 2
-const INDENT = spaces(INDENT_WIDTH)
-
-let OPTION_VARIANT_FORMAT = peg"""
-        option <- ^ (shortOption / longOption) $
-        prefix <- '\-'
-        shortOption <- prefix {\w}
-        longOption <- prefix prefix {\w (\w / prefix)*}
-    """
-
-let OPTION_VALUE_FORMAT = peg"""
-        option <- ^ {(shortOption / longOption)} equals {value}
-        prefix <- '\-'
-        shortOption <- prefix \w
-        longOption <- prefix prefix \w (\w / prefix)*
-        equals <- '=' / ':'
-        value <- _+
-    """
-
-let ARGUMENT_VARIANT_FORMAT = peg"""
-        argument <- ^ left_bracket word right_bracket $
-        left_bracket <- '\<'
-        right_bracket <- '\>'
-        word <- \ident
-    """
-
-## Are you struggling with Arguments? Then you need therapist, a type-safe argument 
-## parser aiming for simplicity and minimal magic.
+## Therapist - for when commands and arguments are getting you down
+## =================================================================
+## A simple to use, declarative, type-safe command line parser, with beautiful help messages.
 ## 
 ## 'Hello world' example:
 ## 
@@ -74,6 +49,34 @@ let ARGUMENT_VARIANT_FORMAT = peg"""
 ##   --version   Prints version
 ##   -h, --help  Show help message
 ## ```
+
+const INDENT_WIDTH = 2
+const INDENT = spaces(INDENT_WIDTH)
+
+# Allows you to capture the o / option in -o / --option
+let OPTION_VARIANT_FORMAT = peg"""
+        option <- ^ (shortOption / longOption) $
+        prefix <- '\-'
+        shortOption <- prefix {\w}
+        longOption <- prefix prefix {\w (\w / prefix)*}
+    """
+
+# Allows you to capture the -o / --option & value in -o=value / --option=value
+let OPTION_VALUE_FORMAT = peg"""
+        option <- ^ {(shortOption / longOption)} equals {value}
+        prefix <- '\-'
+        shortOption <- prefix \w
+        longOption <- prefix prefix \w (\w / prefix)*
+        equals <- '=' / ':'
+        value <- _+
+    """
+
+let ARGUMENT_VARIANT_FORMAT = peg"""
+        argument <- ^ left_bracket word right_bracket $
+        left_bracket <- '\<'
+        right_bracket <- '\>'
+        word <- \ident
+    """
 
 type
 
@@ -149,9 +152,9 @@ type
         discard
 
     SpecificationError* = object of Defect
-        ## Indicates an error in the specification. This error is thrown during the
-        ## creation of the parser specification and as such should not be seen by
-        ## end users
+        ## Indicates an error in the specification. This error is thrown during an attempt
+        ## to create a parser with an invalid specification and as such indicates a 
+        ## programming error
         discard
 
     ParseError* = object of ArgError
@@ -609,6 +612,35 @@ template defineArg*[T](TypeName: untyped, cons: untyped, name: string, parseT: p
 
 defineArg[bool](BoolArg, newBoolArg, "boolean", parseBool, false)
 
+proc parseFile(value: string): string =
+    if not existsFile(value):
+        raise newException(ParseError, fmt"File '{value}' not found")
+    result = value
+
+defineArg[string](FileArg, newFileArg, "file", parseFile, "")
+
+proc parseDir(value: string): string =
+    if not existsDir(value):
+        raise newException(ParseError, fmt"Directory '{value}' not found")
+    result = value
+
+defineArg[string](DirArg, newDirArg, "directory", parseDir, "")
+
+proc parsePath(value: string): string =
+    if not (existsFile(value) or existsDir(value)):
+        raise newException(ParseError, fmt"Path '{value}' not found")
+    result = value
+
+defineArg[string](PathArg, newPathArg, "path", parsePath, "")
+
+proc parseURL(value: string): Uri =
+    let parsed = parseUri(value)
+    if not (len(parsed.scheme)>0 and len(parsed.hostname)>0):
+        raise newException(ValueError, "Missing scheme / host")
+    result = parsed
+
+defineArg[Uri](URLArg, newURLArg, "URL", parseURL, parseUri(""))
+
 method register*(arg: Arg, variant: string) {.base.} = 
     ## `register` is called by the parser when an argument is seen. If you want to interupt parsing
     ## e.g. to print help, now is the time to do it
@@ -728,10 +760,7 @@ proc parse*(specification: tuple, prolog="", epilog="", args: seq[string] = comm
     parse(newSpecification(specification, prolog, epilog), args, command)
 
 proc parse*(specification: tuple, prolog="", epilog="", args: string, command = extractFilename(getAppFilename())) =
-    let (error, words) = shlex(args)
-    if error:
-        raise newException(ParseError, fmt"Unable to split: {args}")
-    parse(specification, prolog, epilog, words, command)
+    parse(specification, prolog, epilog, parseCmdLine(args), command)
 
 proc parseOrQuit*(spec: tuple, prolog="", epilog="", args: seq[string] = commandLineParams(), command = extractFilename(getAppFilename())) =
     ## Attempts to parse the input. If the parse fails or the user has asked
@@ -747,10 +776,7 @@ proc parseOrQuit*(spec: tuple, prolog="", epilog="", args: seq[string] = command
 
 proc parseOrQuit*(spec: tuple, prolog="", epilog="", args: string, command: string) =
     ## Version of `parseOrQuit` taking `args` as a `string` for sugar
-    let (error, words) = shlex(args)
-    if error:
-        quit(fmt"Unable to split: {args}", 1)
-    parseOrQuit(spec, prolog, epilog, words, command)
+    parseOrQuit(spec, prolog, epilog, parseCmdLine(args), command)
 
 proc parseOrMessage*(spec: tuple, prolog="", epilog="", args: seq[string] = commandLineParams(), command = extractFilename(getAppFilename())): tuple[success: bool, message: Option[string]] =
     ## Version of `parse` that returns `success` if the parse was sucessful.
@@ -766,13 +792,7 @@ proc parseOrMessage*(spec: tuple, prolog="", epilog="", args: seq[string] = comm
 
 proc parseOrMessage*(spec: tuple, prolog="", epilog="", args: string, command: string): tuple[success: bool, message: Option[string]] =
     ## Version of `parseOrMessage` that accepts `args` as a string for debugging sugar
-    try:
-        parse(spec, prolog, epilog, args, command)
-        result = (true, none(string))
-    except MessageError:
-        result = (true, some(getCurrentExceptionMsg()))
-    except ParseError:
-        result = (false, some(getCurrentExceptionMsg()))
+    result = parseOrMessage(spec, prolog, epilog, parseCmdLine(args), command)
 
 when isMainModule:
     import unittest
@@ -819,29 +839,29 @@ Options:
                 number: newIntArg(@["-n", "--number"], help="Max number of files to copy", helpvar="n"),
                 float: newFloatArg(@["-f", "--float"], help="Max percentage of hard drive", helpvar="pct"),
                 verbosity: newCountArg(@["-v", "--verbose"], help="Verbosity (can be repeated)"),
-                src: newStringArg(@["<source>"], multi=true, help="Source"),
+                src: newPathArg(@["<source>"], multi=true, help="Source"),
                 dest: newStringArg(@["<destination>"], help="Destination"),
                 help: newHelpArg()
             )
 
         test "Basic parsing":
-            parse(spec, args = "-r from to -n=42 --float:0.5 -v -v -v", command="cp")
+            parse(spec, args = "-r README.rst to -n=42 --float:0.5 -v -v -v", command="cp")
             check(spec.recursive.seen)
             check(spec.number.seen)
             check(spec.number.value==42)
             check(spec.float.seen)
             check(spec.float.value==0.5)
             check(spec.src.seen)
-            check(spec.src.value=="from")
+            check(spec.src.value=="README.rst")
             check(spec.dest.seen)
             check(spec.dest.value=="to")
             check(spec.verbosity.seen)
             check(spec.verbosity.count==3)
         
         test "Arguments can have multiple values":
-            parse(spec, args = @["this", "and_this", "to_here"], command="cp")
+            parse(spec, args = @["README.rst", "therapist.nimble", "to_here"], command="cp")
             check(spec.src.seen)
-            check(spec.src.values == @["this", "and_this"])
+            check(spec.src.values == @["README.rst", "therapist.nimble"])
             check(spec.dest.seen)
             check(spec.dest.value == "to_here")
 
