@@ -5,6 +5,7 @@ import pegs
 import strformat
 import strutils
 import tables
+import terminal
 import std/wordwrap
 import uri
 
@@ -111,6 +112,15 @@ type
         value*: int
         values*: seq[int]
         choices: seq[int]
+    PromptArg* = ref object of Arg
+        ## Base class for arguments whose value is read from a prompt not an argument
+        prompt: string
+        secret: bool
+    StringPromptArg* = ref object of PromptArg
+        defaultVal: string
+        value*: string
+        values*: seq[string]
+        choices: seq[string]
     CountArg* = ref object of Arg
         ## Counts the number of times this argument appears
         defaultVal: int
@@ -171,7 +181,7 @@ method parse*(arg: Arg, value: string, variant: string) {.base.} =
     ## `parse` is called when a value is seen for an argument. If you 
     ## write your own `Arg` you will need to provide a `parse` implementation. If the
     ## value cannot be parsed, a `ParseError` is raised with a user-friendly explanation
-    raise newException(ValueError, &"Parse not implemented for {$type(arg)}")
+    raise newException(Defect, &"Parse not implemented for {$type(arg)}")
 
 proc initArg*[A, T](arg: var A, variants: seq[string], help: string, defaultVal: T, choices: seq[T], helpVar="", required: bool, optional: bool, multi: bool, env: string) =
     ## If you define your own `ValueArg` type, you can call this function to initialise it. It copies the parameter values to the `ValueArg` object
@@ -238,6 +248,18 @@ proc newStringArg*(variants: seq[string], help: string, default = "", choices=ne
     ## 
     result = new(StringArg)
     initArg(result, variants, help, default, choices, helpvar, required, optional, multi, env)
+
+func initPromptArg(promptArg: PromptArg, prompt: string, secret: bool) =
+    promptArg.prompt = prompt
+    promptArg.secret = secret
+
+proc newStringPromptArg*(variants: seq[string], help: string, default = "", choices=newSeq[string](), helpvar="", required=false, optional=false, multi=false, prompt: string, secret: bool, env=""): StringPromptArg =
+    ## Experimental: Creates an argument whose value is read from a prompt rather than the commandline (e.g. a password)
+    ##  - `prompt` - prompt to display to the user to request input
+    ##  - `secret` - whether to display what the user tyeps (set to `false` for passwords)
+    result = new(StringPromptArg)
+    initArg(result, variants, help, default, choices, helpvar, required, optional, multi, env)
+    initPromptArg(PromptArg(result), prompt, secret)
 
 proc newFloatArg*(variants: seq[string], help: string, default = 0.0, choices=newSeq[float](), helpvar="", required=false, optional=false, multi=false, env=""): FloatArg =
     ## A `FloatArg` takes a float value
@@ -530,7 +552,7 @@ proc render_help(spec: Specification, command: string): string =
 
     result = fmt"""{prolog}{usage}{commands}{arguments}{options}{epilog}""".strip()
 
-template check_choices*[T](arg: Arg, value: T, variant: string) {.inject.} = 
+template check_choices*[T](arg: Arg, value: T, variant: string) = 
     ## `check_choices` checks that `value` has been set to one of the acceptable `choices` values
     if len(arg.choices)>0 and not (value in arg.choices):
         let message = "Expected " & variant & " value to be " & arg.render_choices() & " , got: '" & $value & "'"
@@ -555,6 +577,11 @@ method parse(arg: FloatArg, value: string, variant: string) =
         raise newException(ParseError, fmt"Expected a float for {variant}, got: {value}")
 
 method parse(arg: StringArg, value: string, variant: string) =
+    arg.check_choices(value, variant)
+    arg.value = value
+    arg.values.add(value)
+
+method parse(arg: StringPromptArg, value: string, variant: string) =
     arg.check_choices(value, variant)
     arg.value = value
     arg.values.add(value)
@@ -665,7 +692,18 @@ func seen*(arg: Arg): bool =
 proc consume(arg: Arg, args: seq[string], variant: string, pos: int, command: string): int =
     # Consume an argument. ValueArgs consume one argument at a time, Commands consume all the remaining arguments
     arg.register(variant)
-    if arg of ValueArg:
+    if arg of PromptArg:
+        let parg = PromptArg(arg)
+        let prompt = if len(parg.prompt)>0: parg.prompt else: fmt"{arg.helpvar}: "
+        let value = if parg.secret:
+            readPasswordFromStdin(prompt)
+        else:
+            stdout.write(prompt)
+            stdout.flushFile()
+            stdin.readLine()
+        arg.parse(value, variant)
+        result = 0
+    elif arg of ValueArg:
         if pos < len(args):
             arg.parse(args[pos], variant)
             result = 1
@@ -716,7 +754,9 @@ proc parse(specification: Specification, args: seq[string], command: string, sta
                     raise newException(ParseError, fmt"Unrecognised option: {option_value[0]}")
                 let variant = option_value[0]
                 let option = specification.options[variant]
-                pos += 1 
+                if not (option of ValueArg):
+                    raise newException(ParseError, fmt"Option {variant} does not take a commandline value")
+                pos += 1
                 discard option.consume(@[option_value[1]], variant, 0, command)
             # Check if it's an unexpected option
             elif args[pos] =~ OPTION_VARIANT_FORMAT:
@@ -744,7 +784,7 @@ proc parse(specification: Specification, args: seq[string], command: string, sta
         for option in specification.optionList:
             if option.required and not option.seen:
                 let variants = option.variants.join(", ")
-                raise newException(ParseError, fmt"Missing option: {variants}")
+                raise newException(ParseError, fmt"Missing required option: {variants}")
 
         pos = 0
 
