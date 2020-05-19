@@ -691,11 +691,13 @@ proc parse(specification: Specification, args: seq[string], command: string, sta
         # subcommand we will switch to the subcommand parser
         var option_value: array[2, string]
         while pos < len(args):
+            # Check for end of options
             if args[pos]=="--":
                 pos += 1
                 while pos < len(args):
                     positionals.add(args[pos])
                     pos += 1
+            # Check if it's an option (or a command)
             elif args[pos] in specification.options: 
                 let variant = args[pos]
                 let option = specification.options[variant]
@@ -708,6 +710,7 @@ proc parse(specification: Specification, args: seq[string], command: string, sta
                             raise newException(ParseError, fmt"Alternative to {variant} already seen")
                     else:
                         alternatives.consume(option)
+            # Check if it's an option with a value attached --option=value
             elif args[pos].match(OPTION_VALUE_FORMAT, option_value):
                 if option_value[0] notin specification.options:
                     raise newException(ParseError, fmt"Unrecognised option: {option_value[0]}")
@@ -715,15 +718,23 @@ proc parse(specification: Specification, args: seq[string], command: string, sta
                 let option = specification.options[variant]
                 pos += 1 
                 discard option.consume(@[option_value[1]], variant, 0, command)
-            elif args[pos] =~ peg"\-\-\w\w+$" or args[pos] =~ peg"\-\w$":
+            # Check if it's an unexpected option
+            elif args[pos] =~ OPTION_VARIANT_FORMAT:
                 raise newException(ParseError, fmt"Unrecognised option: {args[pos]}")
-            elif args[pos] =~ peg"\-\w\w+":
-                for letter in args[pos].substr(1):
+            # Check if it's a short option followed by something
+            elif args[pos] =~ peg"\-\w.+":
+                # Iterate through the letters in the short option
+                for index, letter in args[pos].substr(1):
                     let variant = "-" & letter
                     if variant notin specification.options:
                         raise newException(ParseError, fmt"Unrecognised option: {variant} in {args[pos]}")
                     let option = specification.options[variant]
-                    discard option.consume(@[], variant, 0, command)
+                    if option of ValueArg:
+                        let value = args[pos].substr(2+index)
+                        discard option.consume(@[value], variant, 0, command)
+                        break
+                    else:
+                        discard option.consume(@[], variant, 0, command)
                 pos += 1
             else:
                 positionals.add(args[pos])
@@ -857,7 +868,12 @@ Options:
             check(spec.dest.value=="to")
             check(spec.verbosity.seen)
             check(spec.verbosity.count==3)
-        
+
+        test "Short options can take values without spaces/separators": 
+            parse(spec, args = "README.rst to -n42")
+            check(spec.number.seen)
+            check(spec.number.value==42)
+
         test "Arguments can have multiple values":
             parse(spec, args = @["README.rst", "therapist.nimble", "to_here"], command="cp")
             check(spec.src.seen)
@@ -865,10 +881,22 @@ Options:
             check(spec.dest.seen)
             check(spec.dest.value == "to_here")
 
+        test "Unexpected options raise a parse error":
+            expect(ParseError):
+                parse(spec, args = @["-x"], command="cp")
+
         test "Help raises message error":
             expect(MessageError):
                 parse(spec, args = @["-h"], command="cp")
         
+        test "Help raises message error in a multiletter short option":
+            expect(MessageError):
+                parse(spec, args = @["-vh"], command="cp")
+
+        test "Unexpected options in multiletter short options raise a parse error":
+            expect(ParseError):
+                parse(spec, args = @["-vx"], command="cp")
+
         test "Simple help format":
             try:
                 parse(spec, args = @["-h"], command="cp")

@@ -32,7 +32,8 @@ The constructor for each `Arg` type takes the form:
   `--number=<n>`)
 - Arguments are expected to be seen at most once, unless `multi=true`
 - Options that take a value may be entered as `-o <value>`, `-o:<value>` or `-o=<value>` (similarly for the 
-  long form i.e. `--option <value>` etc)
+  long form i.e. `--option <value>` etc). Short options may be repeated, e.g. `-vvv` or take values without a
+  separator e.g. `-o<value>`
 - Options may be interleaved with arguments, so `> markup input.txt -o output.html` is the same as
   `> markup -o output.html input.txt`
 - A `default` value may be provided in case the argument is not seen. Additionally an `env` key can be provided 
@@ -213,12 +214,10 @@ Possible features therapist does not have
 In *rough* order of likelihood of being added:
 
 - Automatically appending `[default: x]` to help messages
-- Support for `-o<value>` syntax
 - 'Hidden' arguments (so you can have `--help` and `--extended-help`)
 - Groups, such that arguments / options are grouped under separate headings in the help message (see `grep`, which has
   'Generic options', 'Matcher options' etc)
 - Ints and floats being limited to a range rather than a set of discrete values
-- The ability to ask for input, e.g. `-p` causes a password prompt to appear
 - The ability to specify options in the form `--[no]color` such that `--color` sets the value to `true` 
   and `--nocolor` to false; support for --black/--white to indicate mutually exclusive alternatives
 - Support for +w and -w to equate to `w=true` and `w=false`
