@@ -62,6 +62,10 @@ let ARGUMENT_VARIANT_FORMAT = peg"""
     """
 
 type
+    ArgKind = enum
+        akPositional,
+        akOptional,
+        akCommand
 
     Arg* = ref object of RootObj
         ## Base class for arguments
@@ -73,6 +77,8 @@ type
         multi: bool
         env: string
         helpVar: string
+        group: string
+        kind: ArgKind
     ValueArg* = ref object of Arg
         ## Base class for arguments that take a value
         discard
@@ -129,6 +135,7 @@ type
         optionList: seq[Arg]
         argumentList: seq[Arg]
         commandList: seq[CommandArg]
+        groups: OrderedTableRef[string, seq[Arg]]
 
     ArgError* = object of CatchableError 
         ## Base Exception for module
@@ -166,7 +173,7 @@ method parse*(arg: Arg, value: string, variant: string) {.base.} =
     ## value cannot be parsed, a `ParseError` is raised with a user-friendly explanation
     raise newException(Defect, &"Parse not implemented for {$type(arg)}")
 
-proc initArg*[A, T](arg: var A, variants: seq[string], help: string, defaultVal: T, choices: seq[T], helpVar="", required: bool, optional: bool, multi: bool, env: string) =
+proc initArg*[A, T](arg: var A, variants: seq[string], help: string, defaultVal: T, choices: seq[T], helpVar="", group="", required: bool, optional: bool, multi: bool, env: string) =
     ## If you define your own `ValueArg` type, you can call this function to initialise it. It copies the parameter values to the `ValueArg` object
     ## and initialises the `value` field with either the value from the `env` environment key (if supplied and if the key is present in the environment)
     ## or `defaultVal`
@@ -175,6 +182,7 @@ proc initArg*[A, T](arg: var A, variants: seq[string], help: string, defaultVal:
     arg.choices = choices
     arg.defaultVal = defaultVal
     arg.help = help
+    arg.group = group
     arg.required = required
     arg.optional = optional
     arg.multi = multi
@@ -190,7 +198,7 @@ proc initArg*[A, T](arg: var A, variants: seq[string], help: string, defaultVal:
     if required and optional:
         raise newException(SpecificationError, "Arguments can be required or optional not both")
 
-proc newStringArg*(variants: seq[string], help: string, default = "", choices=newSeq[string](), helpvar="", required=false, optional=false, multi=false, env=""): StringArg =
+proc newStringArg*(variants: seq[string], help: string, default = "", choices=newSeq[string](), helpvar="", group="", required=false, optional=false, multi=false, env=""): StringArg =
     ## Creates a new Arg. 
     ## 
     ## .. code-block:: nim
@@ -230,21 +238,21 @@ proc newStringArg*(variants: seq[string], help: string, default = "", choices=ne
     ## 
     ## 
     result = new(StringArg)
-    initArg(result, variants, help, default, choices, helpvar, required, optional, multi, env)
+    initArg(result, variants, help, default, choices, helpvar, group, required, optional, multi, env)
 
 func initPromptArg(promptArg: PromptArg, prompt: string, secret: bool) =
     promptArg.prompt = prompt
     promptArg.secret = secret
 
-proc newStringPromptArg*(variants: seq[string], help: string, default = "", choices=newSeq[string](), helpvar="", required=false, optional=false, multi=false, prompt: string, secret: bool, env=""): StringPromptArg =
+proc newStringPromptArg*(variants: seq[string], help: string, default = "", choices=newSeq[string](), helpvar="", group="", required=false, optional=false, multi=false, prompt: string, secret: bool, env=""): StringPromptArg =
     ## Experimental: Creates an argument whose value is read from a prompt rather than the commandline (e.g. a password)
     ##  - `prompt` - prompt to display to the user to request input
     ##  - `secret` - whether to display what the user tyeps (set to `false` for passwords)
     result = new(StringPromptArg)
-    initArg(result, variants, help, default, choices, helpvar, required, optional, multi, env)
+    initArg(result, variants, help, default, choices, helpvar, group, required, optional, multi, env)
     initPromptArg(PromptArg(result), prompt, secret)
 
-proc newFloatArg*(variants: seq[string], help: string, default = 0.0, choices=newSeq[float](), helpvar="", required=false, optional=false, multi=false, env=""): FloatArg =
+proc newFloatArg*(variants: seq[string], help: string, default = 0.0, choices=newSeq[float](), helpvar="", group="", required=false, optional=false, multi=false, env=""): FloatArg =
     ## A `FloatArg` takes a float value
     ## 
     ## .. code-block:: nim
@@ -260,9 +268,9 @@ proc newFloatArg*(variants: seq[string], help: string, default = 0.0, choices=ne
     ##      doAssert spec.number.seen
     ##      doAssert spec.number.value == 0.25
     result = new(FloatArg)
-    initArg(result, variants, help, default, choices, helpvar, required, optional, multi, env)
+    initArg(result, variants, help, default, choices, helpvar, group, required, optional, multi, env)
 
-proc newIntArg*(variants: seq[string], help: string, default = 0, choices=newSeq[int](), helpvar="", required=false, optional=false, multi=false, env=""): IntArg =
+proc newIntArg*(variants: seq[string], help: string, default = 0, choices=newSeq[int](), helpvar="", group="", required=false, optional=false, multi=false, env=""): IntArg =
     ## An `IntArg` takes an integer value
     ## 
     ## .. code-block:: nim
@@ -278,9 +286,9 @@ proc newIntArg*(variants: seq[string], help: string, default = 0, choices=newSeq
     ##      doAssert spec.number.seen
     ##      doAssert spec.number.value == 10
     result = new(IntArg)
-    initArg(result, variants, help, default, choices, helpvar, required, optional, multi, env)
+    initArg(result, variants, help, default, choices, helpvar, group, required, optional, multi, env)
 
-proc newCountArg*(variants: seq[string], help: string, default = 0, choices=newSeq[int](), required=false, optional=false, multi=true, env=""): CountArg =
+proc newCountArg*(variants: seq[string], help: string, default = 0, choices=newSeq[int](), group="", required=false, optional=false, multi=true, env=""): CountArg =
     ## A `CountArg` counts how many times it has been seen
     ## 
     ## .. code-block:: nim
@@ -295,9 +303,9 @@ proc newCountArg*(variants: seq[string], help: string, default = 0, choices=newS
     ##      doAssert success and message.isNone
     ##      doAssert spec.verbosity.count == 3
     result = new(CountArg)
-    initArg(result, variants, help, default, choices, helpvar="", required, optional, multi, env)
+    initArg(result, variants, help, default, choices, helpvar="", group, required, optional, multi, env)
 
-proc newHelpArg*(variants: seq[string], help: string): HelpArg =
+proc newHelpArg*(variants= @["-h", "--help"], help="Show help message", group=""): HelpArg =
     ## If a help arg is seen, a help message will be shown
     ## 
     ## .. code-block:: nim
@@ -329,15 +337,9 @@ proc newHelpArg*(variants: seq[string], help: string): HelpArg =
     result = new(HelpArg)
     result.variants = variants
     result.help = help
+    result.group = group
 
-proc newHelpArg*(): HelpArg =
-    ## Equivalent to:
-    ## ```nim
-    ## newHelpArg(@["-h", "--help"], help="Show help message")
-    ## ```
-    result = newHelpArg(@["-h", "--help"], help="Show help message")
-
-proc newMessageArg*(variants: seq[string], message: string, help: string): MessageArg =
+proc newMessageArg*(variants: seq[string], message: string, help: string, group=""): MessageArg =
     ## If a `MessageArg` is seen, a message will be shown
     ## 
     ## .. code-block:: nim
@@ -354,15 +356,24 @@ proc newMessageArg*(variants: seq[string], message: string, help: string): Messa
     result.variants = variants
     result.message = message
     result.help = help
+    result.group = group
 
-proc newCommandArg*(variants: seq[string], specification: tuple, help="", prolog="", epilog=""): CommandArg =
+proc newCommandArg*(variants: seq[string], specification: tuple, help="", prolog="", epilog="", group=""): CommandArg =
     result = new(CommandArg)
     result.variants = variants
     result.specification = newSpecification(specification, prolog, epilog)
     result.help = help
+    result.group = group
 
 proc newAlternatives(alternatives: tuple): Alternatives =
     result = new(Alternatives)
+
+func addToGroup(specification: Specification, arg: Arg, defaultGroup: string) =
+    let group = if len(arg.group)>0: arg.group else: defaultGroup
+    if group in specification.groups:
+        specification.groups[group].add(arg)
+    else:
+        specification.groups[group] = @[arg]
 
 proc addArg(specification: Specification, variable: string, arg: Arg) =
     if len(arg.variants)<1:
@@ -371,6 +382,8 @@ proc addArg(specification: Specification, variable: string, arg: Arg) =
 
     if first.startsWith('-'):
         specification.optionList.add(arg)
+        specification.addToGroup(arg, "Options")
+        arg.kind = akOptional
         var matches: array[2, string]
         var helpVar = ""
         for variant in arg.variants:
@@ -413,6 +426,8 @@ proc addArg(specification: Specification, variable: string, arg: Arg) =
 
     elif first.startsWith('<'):
         specification.argumentList.add(arg)
+        specification.addToGroup(arg, "Arguments")
+        arg.kind = akPositional
         for variant in arg.variants:
             if variant =~ ARGUMENT_VARIANT_FORMAT:
                 if variant in specification.arguments:
@@ -423,6 +438,8 @@ proc addArg(specification: Specification, variable: string, arg: Arg) =
     else:
         if arg of CommandArg:
             specification.commandList.add(CommandArg(arg))
+            specification.addToGroup(arg, "Commands")
+            arg.kind = akCommand
             for variant in arg.variants:
                 specification.options[variant] = arg
         else:
@@ -441,6 +458,10 @@ proc newSpecification(spec: tuple, prolog: string, epilog: string): Specificatio
     result.optionlist = newSeq[Arg]()
     result.argumentList = newSeq[Arg]()
     result.commandList = newSeq[CommandArg]()
+    result.groups = newOrderedTable[string, seq[Arg]]()
+    result.groups["Commands"] = newSeq[Arg]()
+    result.groups["Arguments"] = newSeq[Arg]()
+    result.groups["Options"] = newSeq[Arg]()
     result.prolog = prolog
     result.epilog = epilog
 
@@ -513,12 +534,13 @@ proc render_help(spec: Specification, command: string): string =
         if option of MessageArg or option of HelpArg:
             let example = INDENT & command & " " & option.variants.join("|")
             lines.add(example)
+    lines.add("")
     let usage = lines.join("\n")
     
     let max_width = 80
     var variant_width = 0
     # Find the widest command/argument/option example so we can ensure that the help texts all line up
-    for cmd in spec.argumentList:
+    for cmd in spec.commandList:
         variant_width = max(variant_width, len(cmd.variants.join(", ")))
     for argument in spec.argumentList:
         variant_width = max(variant_width, len(argument.variants.join(", ")))
@@ -530,32 +552,49 @@ proc render_help(spec: Specification, command: string): string =
     let help_width = max_width - help_indent
 
     lines = newSeq[string]()
-    if len(spec.commandList)>0:
-        lines = @["\n\nCommands:"]
-        for cmd in spec.commandList:
-            let help = wrapWords(cmd.help, help_width).indent(help_indent).strip()
-            lines.add(INDENT & alignLeft(cmd.variants.join(", "), variant_width) & INDENT & help)
-    let commands = lines.join("\n")
-    lines = newSeq[string]()
-    if len(spec.argumentList)>0:
-        lines = @["\n\nArguments:"]
-        for argument in spec.argumentList:
-            let help = wrapWords(argument.help, help_width).indent(help_indent).strip()
-            lines.add(INDENT & alignLeft(argument.variants.join(", "), variant_width) & INDENT & help)
-    let arguments = lines.join("\n")
-    lines = newSeq[string]()
-    if len(spec.optionList)>0:
-        lines = @["\n\nOptions:"]
-        for option in spec.optionList:
-            let help = wrapWords(option.help, help_width).indent(help_indent).strip()
-            let helpVar = if len(option.helpVar)>0: "=" & option.helpVar else: ""
-            lines.add(INDENT & alignLeft(option.variants.join(", ") & helpVar, variant_width) & INDENT & help)
-    let options = lines.join("\n")
-
+    for group, args in spec.groups.pairs:
+        if len(args)==0:
+            continue
+        lines.add(&"\n{group}:")
+        for arg in args:
+            case arg.kind:
+                of akCommand, akPositional:
+                    let help = wrapWords(arg.help, help_width).indent(help_indent).strip()
+                    lines.add(INDENT & alignLeft(arg.variants.join(", "), variant_width) & INDENT & help)
+                of akOptional:
+                    let help = wrapWords(arg.help, help_width).indent(help_indent).strip()
+                    let helpVar = if len(arg.helpVar)>0: "=" & arg.helpVar else: ""
+                    lines.add(INDENT & alignLeft(arg.variants.join(", ") & helpVar, variant_width) & INDENT & help)
+    
     let prolog = if len(spec.prolog)>0: wrapWords(spec.prolog, max_width) & "\n\n" else: spec.prolog
     let epilog = if len(spec.epilog)>0: "\n\n" & wrapWords(spec.epilog, max_width) else: spec.epilog
+    let args = lines.join("\n")
 
-    result = fmt"""{prolog}{usage}{commands}{arguments}{options}{epilog}""".strip()
+    result = fmt"{prolog}{usage}{args}{epilog}".strip()
+
+    # if len(spec.commandList)>0:
+    #     lines = @["\n\nCommands:"]
+    #     for cmd in spec.commandList:
+    #         let help = wrapWords(cmd.help, help_width).indent(help_indent).strip()
+    #         lines.add(INDENT & alignLeft(cmd.variants.join(", "), variant_width) & INDENT & help)
+    # let commands = lines.join("\n")
+    # lines = newSeq[string]()
+    # if len(spec.argumentList)>0:
+    #     lines = @["\n\nArguments:"]
+    #     for argument in spec.argumentList:
+    #         let help = wrapWords(argument.help, help_width).indent(help_indent).strip()
+    #         lines.add(INDENT & alignLeft(argument.variants.join(", "), variant_width) & INDENT & help)
+    # let arguments = lines.join("\n")
+    # lines = newSeq[string]()
+    # if len(spec.optionList)>0:
+    #     lines = @["\n\nOptions:"]
+    #     for option in spec.optionList:
+    #         let help = wrapWords(option.help, help_width).indent(help_indent).strip()
+    #         let helpVar = if len(option.helpVar)>0: "=" & option.helpVar else: ""
+    #         lines.add(INDENT & alignLeft(option.variants.join(", ") & helpVar, variant_width) & INDENT & help)
+    # let options = lines.join("\n")
+
+    # result = fmt"""{prolog}{usage}{commands}{arguments}{options}{epilog}""".strip()
 
 template check_choices*[T](arg: Arg, value: T, variant: string) = 
     ## `check_choices` checks that `value` has been set to one of the acceptable `choices` values
@@ -625,10 +664,10 @@ template defineArg*[T](TypeName: untyped, cons: untyped, name: string, parseT: p
             values*: seq[T]
             choices: seq[T]
     
-    proc cons*(variants: seq[string], help: string, defaultVal: T = defaultT, choices = newSeq[T](), helpvar="", required=false, optional=false, multi=false, env=""): TypeName =
+    proc cons*(variants: seq[string], help: string, defaultVal: T = defaultT, choices = newSeq[T](), helpvar="", group="", required=false, optional=false, multi=false, env=""): TypeName =
         ## Template-defined constructor - see help for `newStringArg` for the meaning of parameters
         result = new(TypeName)
-        result.initArg(variants, help, defaultVal, choices, helpvar, required, optional, multi, env)
+        result.initArg(variants, help, defaultVal, choices, helpvar, group, required, optional, multi, env)
 
     method render_choices(arg: TypeName): string = 
         arg.choices.join("|")

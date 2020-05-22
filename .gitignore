@@ -5,3 +5,4 @@ Icon?
 *.css
 *.html
 build
+utils/test_rst

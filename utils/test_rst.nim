@@ -54,6 +54,7 @@ proc testFile(filename: string): int =
 when isMainModule:
     let spec = (
         filename: newFileArg(@["<filename>"], help="RST file to test", multi=true),
+        help: newHelpArg()
     )
 
     spec.parseOrQuit(prolog="Run tests against code examples in an rst file")
