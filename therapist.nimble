@@ -11,22 +11,24 @@ installExt    = @["nim"]
 from os import splitFile, `/`
 import strformat
 
-after clean:
-    rmDir "build"
-
 task tests, "Runs the tests":
     selfExec "c --hints:off -r src/therapist"
     selfExec "rst2html --hints:off --outdir:build/docs README.rst"
     selfExec "doc --hints:off --outdir:build/docs src/therapist"
-    mkDir "build" / "tests"
+    let builddir = "build" / "tests"
+    mkDir builddir
     for fname in listFiles("tests"):
         let fileparts = splitFile(fname)
-        if fileparts.ext==".nim":
-            selfExec fmt"c --hints:off --outdir:build/tests -r {fname}"
+        if fileparts.name.startsWith("test") and fileparts.ext==".nim":
+            selfExec fmt"c --hints:off --outdir:{builddir} -r {fname}"
+    selfExec fmt"c --hints:off --outdir:{builddir} utils/test_rst"
+    exec fmt"{builddir}/test_rst README.rst"
 
 task docs, "Builds documentation":
-    selfExec "doc --hints:off --outdir:build/docs src/therapist"
-    selfExec "rst2html --hints:off --outdir:build/docs README.rst"
+    let builddir = "build" / "docs"
+    mkDir builddir
+    selfExec fmt"doc --hints:off --outdir:{builddir} src/therapist"
+    selfExec fmt"rst2html --hints:off --outdir:{builddir} README.rst"
 
 task clean, "Clean up generated binaries, css and html files":
     for fname in listFiles(getCurrentDir()):
@@ -34,6 +36,7 @@ task clean, "Clean up generated binaries, css and html files":
             rmFile fname
     rmFile "src/therapist"
     rmFile "therapist"
+    rmDir "build"
 
 # Dependencies
 

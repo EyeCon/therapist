@@ -42,8 +42,8 @@ suite "grape":
         putEnv("PAGER", "loads")
 
         let spec = (
-            pattern: newStringArg(@["<pattern>"], help="Regular expression pattern used for searching"),
-            target: newStringArg(@["<file>", "<path>"], help="A file or directory to search"),
+            pattern: newStringArg(@["<pattern>"], help="Regular expression pattern to look for"),
+            target: newPathArg(@["<file>", "<dir>"], help="File(s) or directory(ies) to search", multi=true),
             version: newMessageArg(@["-v", "--version"], "0.1.0", help="Prints version"),
             help: newHelpArg(),
             recursive: newCountArg(@["-r", "--recursive"], help="Recurse into subdirectories"),
@@ -55,36 +55,70 @@ suite "grape":
                 sensitive: newCountArg(@["-s", "--case-sensitive"], help="Case sensitive pattern matching"),
             ),
             modified: newIsoDateArg(@["-m", "--modified"], defaultVal=DEFAULT_DATE, help="Only review files modified since this date"),
-            color: newBoolArg(@["-c", "--color", "--colour"], defaultVal=true, help="Whether to colorise output")
+            color: newBoolArg(@["-c", "--color", "--colour"], defaultVal=true, help="Whether to colorise output"),
+            follow: newCountArg(@["--[no]follow"], help="Follow symlinks"),
+            filename: newCountArg(@["-f/-F", "--with-filename/--no-filename"], help="Print filename match was found in"),
         )
     
     teardown:
         putEnv("PAGER", current)
 
+    test "Help":
+        let (success, message) = parseOrMessage(spec, args = "-h", command="grape")
+        check(success)
+        let expected = """
+Usage:
+  grape <pattern> (<file>|<dir>)...
+  grape -v|--version
+  grape -h|--help
+
+Arguments:
+  <pattern>                             Regular expression pattern to look for
+  <file>, <dir>                         File(s) or directory(ies) to search
+
+Options:
+  -v, --version                         Prints version
+  -h, --help                            Show help message
+  -r, --recursive                       Recurse into subdirectories
+  -C, --context=<context>               Number of lines of context to print
+  --pager=<pager>                       Pager to use to display output
+  -i, --ignore-case                     Case insensitive pattern matching
+  -S, --smart-case                      Case insensitive pattern matching for
+                                        lower case patterns, sensitive otherwise
+  -s, --case-sensitive                  Case sensitive pattern matching
+  -m, --modified=<modified>             Only review files modified since this
+                                        date
+  -c, --color, --colour=<colour>        Whether to colorise output
+  --[no]follow                          Follow symlinks
+  -f/-F, --with-filename/--no-filename  Print filename match was found in
+        """.strip()
+        check(message.isSome)
+        check(message.get == expected)
+
     test "Check default values are populated":
-        parse(spec, args = "-S Pattern file.txt", command="grape")
+        parse(spec, args = "-S Pattern README.rst", command="grape")
         check(spec.context.seen==false)
         check(spec.context.value==2)
 
     test "Check alternatives can be detected":
-        parse(spec, args = "-S Pattern file.txt", command="grape")
+        parse(spec, args = "-S Pattern README.rst", command="grape")
         check(spec.sensitivity.insensitive.seen==false)
         check(spec.sensitivity.smartcase.seen==true)
         check(spec.sensitivity.sensitive.seen==false)
 
     test "Check alternatives only picked once":
         expect(ParseError):
-            parse(spec, args="-s -S pattern file.txt", command="grape")
+            parse(spec, args="-s -S pattern README.rst", command="grape")
 
     test "User-defined date type":
-        let (success, message) = spec.parseOrMessage(args = "-m 2020-05-01 corona news.txt", command="grape")
+        let (success, message) = spec.parseOrMessage(args = "-m 2020-05-01 corona README.rst", command="grape")
         if not success:
             echo message
         check(success)
         check(spec.modified.value == initDateTime(1, mMay, 2020, 0, 0, 0, 0))
 
     test "Template-defined boolean type":
-        let (success, message) = spec.parseOrMessage(args = "-c false corona news.txt", command="grape")
+        let (success, message) = spec.parseOrMessage(args = "-c false corona README.rst", command="grape")
         if not success or message.isSome:
             echo message.get
         check(success and message.isNone)
@@ -92,11 +126,47 @@ suite "grape":
         check(spec.color.value == false)
 
     test "Test environment variables can be used for values":
-        let (success, message) = spec.parseOrMessage(args = "corona news.txt", command="grape")
+        let (success, message) = spec.parseOrMessage(args = "corona README.rst", command="grape")
         check(success and message.isNone)
         check(spec.pager.value == "loads")
             
     test "Test environment variables are overwritten by values":
-        let (success, message) = spec.parseOrMessage(args = "--pager none corona news.txt", command="grape")
+        let (success, message) = spec.parseOrMessage(args = "--pager none corona README.rst", command="grape")
         check(success and message.isNone)
         check(spec.pager.value == "none")
+
+    test "Check --[no]option format (count up)":
+        let (success, message) = spec.parseOrMessage(args = "--follow corona src", command="grape")
+        check(success and message.isNone)
+        check(spec.follow.seen)
+        check(spec.follow.count == 1)
+
+    test "Check --[no]option format (count down)":
+        let (success, message) = spec.parseOrMessage(args = "--nofollow corona src", command="grape")
+        check(success and message.isNone)
+        check(spec.follow.seen)
+        check(spec.follow.count == -1)
+
+    test "Check -y/-n option format (count up)":
+        let (success, message) = spec.parseOrMessage(args = "-f corona src", command="grape")
+        check(success and message.isNone)
+        check(spec.filename.seen)
+        check(spec.filename.count == 1)
+
+    test "Check -y/-n option format (count down)":
+        let (success, message) = spec.parseOrMessage(args = "-F corona src", command="grape")
+        check(success and message.isNone)
+        check(spec.filename.seen)
+        check(spec.filename.count == -1)
+    
+    test "Check --yes/--no option format (count up)":
+        let (success, message) = spec.parseOrMessage(args = "--with-filename corona src", command="grape")
+        check(success and message.isNone)
+        check(spec.filename.seen)
+        check(spec.filename.count == 1)
+    
+    test "Check --yes/--no option format (count down)":
+        let (success, message) = spec.parseOrMessage(args = "--no-filename corona src", command="grape")
+        check(success and message.isNone)
+        check(spec.filename.seen)
+        check(spec.filename.count == -1)

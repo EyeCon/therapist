@@ -2,6 +2,7 @@
 import os
 import options
 import pegs
+import sets
 import strformat
 import strutils
 import tables
@@ -9,47 +10,7 @@ import terminal
 import std/wordwrap
 import uri
 
-## Therapist - for when commands and arguments are getting you down
-## =================================================================
-## A simple to use, declarative, type-safe command line parser, with beautiful help messages.
-## 
-## 'Hello world' example:
-## 
-## Parser specifications are built up from tuples
-## 
-## .. code-block:: nim
-##      :test:
-##      let spec = ( 
-##          # Name is an argument
-##          name: newStringArg(@["<name>"], help="Person to greet"),
-##          # --version will cause 0.1.0 to be printed
-##          version: newMessageArg(@["--version"], "0.1.0", help="Prints version"), 
-##          # --help will cause a help message to be printed
-##          help: newHelpArg(@["-h", "--help"], help="Show help message"), 
-##      )
-##      # `args` and `command` would normally be picked up from the commandline
-##      spec.parseOrQuit(prolog="Greeter", args="World", command="hello") 
-##      # If a help message or version was requested or a parse error generated it would be printed
-##      # and then the parser would call `quit`. Getting past `parseOrQuit` implies we're ok.
-##      doAssert spec.name.value=="World"
-## 
-## The above spec will automatically generate a help message that looks like this:
-## 
-## ```
-## Greeter
-## 
-## Usage:
-##   hello <name>
-##   hello --version
-##   hello -h|--help
-##
-## Arguments:
-##   <name>      Person to greet
-##
-## Options:
-##   --version   Prints version
-##   -h, --help  Show help message
-## ```
+## .. include:: ../README.rst
 
 const INDENT_WIDTH = 2
 const INDENT = spaces(INDENT_WIDTH)
@@ -59,7 +20,28 @@ let OPTION_VARIANT_FORMAT = peg"""
         option <- ^ (shortOption / longOption) $
         prefix <- '\-'
         shortOption <- prefix {\w}
-        longOption <- prefix prefix {\w (\w / prefix)*}
+        longOption <- prefix prefix {\w (\w / prefix)+}
+    """
+
+# Captures --[no]option
+let OPTION_VARIANT_NO_FORMAT = peg"""
+        option <- ^ longOption $
+        prefix <- '\-'
+        no <- '\[no\]'
+        longOption <- prefix prefix no {\w (\w / prefix)+}
+    """
+# Captures --yes / --no
+let OPTION_VARIANT_LONG_ALT_FORMAT = peg"""
+        option <- ^ (longOption \s* '/' \s* longOption) $
+        prefix <- '\-'
+        longOption <- prefix prefix {\w (\w / prefix)+}
+    """
+
+# Captures -y / -n
+let OPTION_VARIANT_SHORT_ALT_FORMAT = peg"""
+        option <- ^ (shortOption \s* '/' \s* shortOption) $
+        prefix <- '\-'
+        shortOption <- prefix {\w}
     """
 
 # Allows you to capture the -o / --option & value in -o=value / --option=value
@@ -125,6 +107,7 @@ type
         ## Counts the number of times this argument appears
         defaultVal: int
         choices: seq[int]
+        down: HashSet[string]
     HelpArg* = ref object of CountArg
         ## If this argument is provided, a `MessageError` containing a help message will be raised
     MessageArg* = ref object of CountArg
@@ -388,16 +371,38 @@ proc addArg(specification: Specification, variable: string, arg: Arg) =
 
     if first.startsWith('-'):
         specification.optionList.add(arg)
-        var matches: array[1, string]
+        var matches: array[2, string]
         var helpVar = ""
         for variant in arg.variants:
             if variant in specification.options:
                 raise newException(SpecificationError, fmt"Option {variant} defined twice")
-            if not variant.match(OPTION_VARIANT_FORMAT, matches):
-                raise newException(SpecificationError, fmt"Option {variant} must be in the form -o or --option")
-            specification.options[variant] = arg
-            if len(matches[0]) > len(helpVar):
-                helpVar = matches[0]
+            if variant.match(OPTION_VARIANT_FORMAT, matches):
+                specification.options[variant] = arg
+                if len(matches[0]) > len(helpVar):
+                    helpVar = matches[0]
+            elif variant.match(OPTION_VARIANT_NO_FORMAT, matches):
+                if not (arg of CountArg):
+                    raise newException(SpecificationError, fmt "Option {variant} format is only supported for CountArgs")
+                let (up, down) = (fmt"--{matches[0]}", fmt"--no{matches[0]}")
+                specification.options[up] = arg
+                specification.options[down] = arg
+                CountArg(arg).down.incl(down)
+            elif variant.match(OPTION_VARIANT_LONG_ALT_FORMAT, matches):
+                if not (arg of CountArg):
+                    raise newException(SpecificationError, fmt "Option {variant} format is only supported for CountArgs")
+                let (up, down) = (fmt"--{matches[0]}", fmt"--{matches[1]}")
+                specification.options[up] = arg
+                specification.options[down] = arg
+                CountArg(arg).down.incl(down)
+            elif variant.match(OPTION_VARIANT_SHORT_ALT_FORMAT, matches):
+                if not (arg of CountArg):
+                    raise newException(SpecificationError, fmt "Option {variant} format is only supported for CountArgs")
+                let (up, down) = (fmt"-{matches[0]}", fmt"-{matches[1]}")
+                specification.options[up] = arg
+                specification.options[down] = arg
+                CountArg(arg).down.incl(down)
+            else:
+                raise newException(SpecificationError, fmt"Option {variant} must be in the form -o, --option or --[no]option")
         if arg of ValueArg:
             # We only want to display a meta var for args that take a value
             if len(arg.helpVar)==0:
@@ -668,7 +673,7 @@ proc parseURL(value: string): Uri =
 
 defineArg[Uri](URLArg, newURLArg, "URL", parseURL, parseUri(""))
 
-method register*(arg: Arg, variant: string) {.base.} = 
+method register*(arg: Arg, variant: string) {.base, locks: "unknown" .} = 
     ## `register` is called by the parser when an argument is seen. If you want to interupt parsing
     ## e.g. to print help, now is the time to do it
     arg.count += 1
@@ -685,9 +690,14 @@ method register(arg: HelpArg, variant: string) =
     procCall arg.Arg.register(variant)
     raise newException(HelpError, "Help")
 
+method register*(arg: CountArg, variant: string) =
+    if arg.count != 0 and not arg.multi:
+        raise newEXception(ParseError, fmt"Duplicate occurence of {variant}")
+    arg.count += (if variant in arg.down: -1 else: 1)
+        
 func seen*(arg: Arg): bool =
     ## `seen` returns `true` if the argument was seen in the input
-    arg.count > 0
+    arg.count != 0
 
 proc consume(arg: Arg, args: seq[string], variant: string, pos: int, command: string): int =
     # Consume an argument. ValueArgs consume one argument at a time, Commands consume all the remaining arguments
@@ -1217,6 +1227,37 @@ Options:
             check(mine.action.value=="set")
             check(mine.x.value==1)
             check(mine.y.value==9)
+
+    suite "Peg test":
+        test "Option no format":
+            var matches: array[2, string]
+            check(match("--[no]colour", OPTION_VARIANT_NO_FORMAT, matches))
+            check(matches[0]=="colour")
+            check(not ("--colour" =~ OPTION_VARIANT_NO_FORMAT))
+            check(not ("--[no]c" =~ OPTION_VARIANT_NO_FORMAT))
+            check(not ("--[some]colour" =~ OPTION_VARIANT_NO_FORMAT))
+        
+        test "Long option alt peg format":
+            var matches: array[2, string]
+            check(match("--black/--white", OPTION_VARIANT_LONG_ALT_FORMAT, matches))
+            check(matches[0]=="black")
+            check(matches[1]=="white")
+            check("--black /--white" =~ OPTION_VARIANT_LONG_ALT_FORMAT)
+            check("--black/ --white" =~ OPTION_VARIANT_LONG_ALT_FORMAT)
+            check("--black / --white" =~ OPTION_VARIANT_LONG_ALT_FORMAT)
+            check(not ("--black" =~ OPTION_VARIANT_LONG_ALT_FORMAT))
+            check(not ("--black / --white / --grey" =~ OPTION_VARIANT_LONG_ALT_FORMAT))
+        
+        test "Short option alt peg format":
+            var matches: array[2, string]
+            check(match("-b/-w", OPTION_VARIANT_SHORT_ALT_FORMAT, matches))
+            check(matches[0]=="b")
+            check(matches[1]=="w")
+            check("-b /-w" =~ OPTION_VARIANT_SHORT_ALT_FORMAT)
+            check("-b/ -w" =~ OPTION_VARIANT_SHORT_ALT_FORMAT)
+            check("-b / -w" =~ OPTION_VARIANT_SHORT_ALT_FORMAT)
+            check(not ("-b" =~ OPTION_VARIANT_SHORT_ALT_FORMAT))
+            check(not ("-b / -w / -g" =~ OPTION_VARIANT_SHORT_ALT_FORMAT))
 
 # Outstanding
 #  - Display options in usage?
