@@ -90,8 +90,10 @@ Matching Options:
 
 Display Options:
   -C, --context=<context>               Number of lines of context to print
+                                        [default: 2]
   --pager=<pager>                       Pager to use to display output
-  -c, --color, --colour=<colour>        Whether to colorise output
+  -c, --color, --colour=<colour>        Whether to colorise output [default:
+                                        true]
   -f/-F, --with-filename/--no-filename  Print filename match was found in
 
 General Options:

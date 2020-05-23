@@ -491,6 +491,21 @@ method render_choices(arg: FloatArg): string =
 method render_choices(arg: IntArg): string = 
     arg.choices.join("|")
 
+method render_default(arg: Arg): string {.base.} = ""
+
+method render_default(arg: StringArg): string =
+    if arg.defaultVal!="": fmt"[default: {arg.defaultVal}]" else: ""
+
+method render_default(arg: FloatArg): string =
+    if arg.defaultVal!=0: fmt"[default: {arg.defaultVal}]" else: ""
+
+method render_default(arg: IntArg): string =
+    if arg.defaultVal!=0: fmt"[default: {arg.defaultVal}]" else: ""
+
+method render_default(arg: StringPromptArg): string =
+    if arg.defaultVal!="": fmt"[default: {arg.defaultVal}]" else: ""
+
+
 proc render_usage(spec: Specification, command: string, lines: var seq[string]) =
     ## Returns an indented list of strings showing usage examples, e.g
     ##   prog command <command_arg>
@@ -558,11 +573,16 @@ proc render_help(spec: Specification, command: string): string =
         lines.add(&"\n{group}:")
         for arg in args:
             case arg.kind:
-                of akCommand, akPositional:
+                of akCommand:
                     let help = wrapWords(arg.help, help_width).indent(help_indent).strip()
                     lines.add(INDENT & alignLeft(arg.variants.join(", "), variant_width) & INDENT & help)
+                of akPositional:
+                    let defaultHelp = if arg.optional: " " & arg.render_default() else: ""
+                    let help = wrapWords(arg.help & defaultHelp, help_width).indent(help_indent).strip()
+                    lines.add(INDENT & alignLeft(arg.variants.join(", "), variant_width) & INDENT & help)
                 of akOptional:
-                    let help = wrapWords(arg.help, help_width).indent(help_indent).strip()
+                    let defaultHelp = if not arg.required: " " & arg.render_default() else: ""
+                    let help = wrapWords(arg.help & defaultHelp, help_width).indent(help_indent).strip()
                     let helpVar = if len(arg.helpVar)>0: "=" & arg.helpVar else: ""
                     lines.add(INDENT & alignLeft(arg.variants.join(", ") & helpVar, variant_width) & INDENT & help)
     
@@ -668,6 +688,9 @@ template defineArg*[T](TypeName: untyped, cons: untyped, name: string, parseT: p
         ## Template-defined constructor - see help for `newStringArg` for the meaning of parameters
         result = new(TypeName)
         result.initArg(variants, help, defaultVal, choices, helpvar, group, required, optional, multi, env)
+
+    method render_default(arg: TypeName): string = 
+        if arg.defaultVal!=default(typedesc(T)): "[default: " & $arg.defaultVal & "]" else: ""
 
     method render_choices(arg: TypeName): string = 
         arg.choices.join("|")
@@ -899,10 +922,16 @@ when isMainModule:
     
     suite "Greeter":
         setup:
+            # Example from README.rst
             let spec = (
+                # Name is a positional argument, by virtue of being surrounded by < and >
                 name: newStringArg(@["<name>"], help="Person to greet"),
+                # --times is an optional argument, by virtue of starting with - and/or --
+                times: newIntArg(@["-t", "--times"], default=1, help="How many times to greet"),
+                # --version will cause 0.1.0 to be printed
                 version: newMessageArg(@["--version"], "0.1.0", help="Prints version"),
-                help: newHelpArg(),
+                # --help will cause a help message to be printed
+                help: newHelpArg(@["-h", "--help"], help="Show help message"),
             )
 
         test "Hello World":
@@ -923,11 +952,12 @@ Usage:
   hello -h|--help
 
 Arguments:
-  <name>      Person to greet
+  <name>               Person to greet
 
 Options:
-  --version   Prints version
-  -h, --help  Show help message""".strip()
+  -t, --times=<times>  How many times to greet [default: 1]
+  --version            Prints version
+  -h, --help           Show help message""".strip()
                 check(message==expected)
 
 
@@ -1150,7 +1180,7 @@ Usage:
   pal init -h|--help
 
 Arguments:
-  <destination>  Location for new repository
+  <destination>  Location for new repository [default: .]
 
 Options:
   -h, --help     Show help message""".strip()

@@ -16,7 +16,7 @@ The constructor for each ``Arg`` type takes the form:
 .. code-block:: nim
 
   # doctest: skip
-  proc newStringArg*(variants: seq[string], help: string, default = "", choices=newSeq[string](), 
+  proc newStringArg*(variants: seq[string], help: string, defaultVal="", choices=newSeq[string](), 
                       helpvar="", required=false, optional=false, multi=false, env="")
 
 - Every argument must be declared with one or more ``variants``. There are three types of argument:
@@ -139,11 +139,12 @@ The above parser generates the following help message
       hello -h|--help
 
     Arguments:
-      <name>      Person to greet
+      <name>               Person to greet
 
     Options:
-      --version   Prints version
-      -h, --help  Show help message
+      -t, --times=<times>  How many times to greet [default: 1]
+      --version            Prints version
+      -h, --help           Show help message
 
 
 At the other extreme, you can create complex parsers with subcommands (the example below may be 
@@ -230,7 +231,6 @@ Possible features therapist does not have
 
 In *rough* order of likelihood of being added:
 
-- Automatically appending ``[default: x]`` to help messages
 - 'Hidden' arguments (so you can have ``--help`` and ``--extended-help``)
 - Options for help format from columns (current) to paragraphs
 - Ints and floats being limited to a range rather than a set of discrete values
