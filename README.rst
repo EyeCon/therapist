@@ -263,12 +263,13 @@ Alternatives and prior art
 This is therapist. There are many argument parsers like it, but this one is mine. Which one you 
 prefer is likely a matter of taste. If you want to explore alternatives, you might like to look at:
 
-
 - parseopt_ - for if you like to parse your args as they are flung at you, old school style
-- `nim-argparse`_ - looks nice, but heavy use of macros, which makes it a little too magic for my 
-  tastes
-- `docopt.nim`_ - you get to craft your help message, but how you use the results (and what the 
-  spec actually means) has always felt inscrutable to me.
+- `nim-argparse`_ - looks nice, but heavy use of macros, which makes it a little too magic for me
+- `docopt.nim`_ - you get to craft your help message, but how you use the results (and indeed what
+  the spec actually means) has always felt inscrutable to me
+- cligen_ - *the* fastest way to generate a commandline parser if you already have the function you 
+  want (think argh_ from python for nim). More complex use cases look a bit less elegant to my eyes, 
+  but you're still going to be winning the code golf competition
 
 .. _bitbucket: https://bitbucket.org/maxgrenderjones/therapist
 .. _parseopt: https://nim-lang.org/docs/parseopt.html
@@ -276,3 +277,5 @@ prefer is likely a matter of taste. If you want to explore alternatives, you mig
 .. _docopt.nim: https://github.com/docopt/docopt.nim
 .. _nimdoc: https://maxgrenderjones.bitbucket.io/therapist/therapist.html
 .. _Therapist: https://maxgrenderjones.bitbucket.io/therapist/therapist.html
+.. _cligen: https://github.com/c-blake/cligen
+.. _argh: https://pythonhosted.org/argh/

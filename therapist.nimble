@@ -1,8 +1,8 @@
 # Package
 
-version       = "0.1.0"
+version       = "0.2.0"
 author        = "Max Grender-Jones"
-description   = "Type-safe argument/option parsing with minimal magic"
+description   = "Type-safe commandline parsing with minimal magic"
 license       = "MIT"
 srcDir        = "src"
 bin           = @["therapist"]
