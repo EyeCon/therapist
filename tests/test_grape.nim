@@ -51,7 +51,7 @@ suite "grape":
                 sensitive: newCountArg(@["-s", "--case-sensitive"], help="Case sensitive pattern matching", group="Matching Options"),
             ),
             follow: newCountArg(@["--[no]follow"], help="Follow symlinks", group="File Options"),
-            context: newIntArg(@["-C", "--context"], default=2, help="Number of lines of context to print", group="Display Options"),
+            context: newIntArg(@["-C", "--context"], defaultVal=2, help="Number of lines of context to print", group="Display Options"),
             pager: newStringArg(@["--pager"], env="PAGER", help="Pager to use to display output", group="Display Options"),
             modified: newIsoDateArg(@["-m", "--modified"], defaultVal=DEFAULT_DATE, help="Only review files modified since this date", group="File Options"),
             color: newBoolArg(@["-c", "--color", "--colour"], defaultVal=true, help="Whether to colorise output", group="Display Options"),

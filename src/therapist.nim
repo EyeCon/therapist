@@ -198,7 +198,7 @@ proc initArg*[A, T](arg: var A, variants: seq[string], help: string, defaultVal:
     if required and optional:
         raise newException(SpecificationError, "Arguments can be required or optional not both")
 
-proc newStringArg*(variants: seq[string], help: string, default = "", choices=newSeq[string](), helpvar="", group="", required=false, optional=false, multi=false, env=""): StringArg =
+proc newStringArg*(variants: seq[string], help: string, defaultVal = "", choices=newSeq[string](), helpvar="", group="", required=false, optional=false, multi=false, env=""): StringArg =
     ## Creates a new Arg. 
     ## 
     ## .. code-block:: nim
@@ -222,7 +222,7 @@ proc newStringArg*(variants: seq[string], help: string, default = "", choices=ne
     ##     - Arguments take the form `<value>` (default to `required` - override wiith `optional=true`)
     ##     - Commands take the form `command`
     ## - `help` is a short form help message to explain what the argument does
-    ## - `default` is a default value
+    ## - `defaultVal` is a default value
     ## - `choices` is a set of allowed values for the argument
     ## - `helpvar` is a dummy variable name shown to the user in the help message for`ValueArg` (i.e. `--option <helpvar>`). 
     ##   Defaults to the longest supplied variant
@@ -238,21 +238,21 @@ proc newStringArg*(variants: seq[string], help: string, default = "", choices=ne
     ## 
     ## 
     result = new(StringArg)
-    initArg(result, variants, help, default, choices, helpvar, group, required, optional, multi, env)
+    initArg(result, variants, help, defaultVal, choices, helpvar, group, required, optional, multi, env)
 
 func initPromptArg(promptArg: PromptArg, prompt: string, secret: bool) =
     promptArg.prompt = prompt
     promptArg.secret = secret
 
-proc newStringPromptArg*(variants: seq[string], help: string, default = "", choices=newSeq[string](), helpvar="", group="", required=false, optional=false, multi=false, prompt: string, secret: bool, env=""): StringPromptArg =
+proc newStringPromptArg*(variants: seq[string], help: string, defaultVal = "", choices=newSeq[string](), helpvar="", group="", required=false, optional=false, multi=false, prompt: string, secret: bool, env=""): StringPromptArg =
     ## Experimental: Creates an argument whose value is read from a prompt rather than the commandline (e.g. a password)
     ##  - `prompt` - prompt to display to the user to request input
     ##  - `secret` - whether to display what the user tyeps (set to `false` for passwords)
     result = new(StringPromptArg)
-    initArg(result, variants, help, default, choices, helpvar, group, required, optional, multi, env)
+    initArg(result, variants, help, defaultVal, choices, helpvar, group, required, optional, multi, env)
     initPromptArg(PromptArg(result), prompt, secret)
 
-proc newFloatArg*(variants: seq[string], help: string, default = 0.0, choices=newSeq[float](), helpvar="", group="", required=false, optional=false, multi=false, env=""): FloatArg =
+proc newFloatArg*(variants: seq[string], help: string, defaultVal = 0.0, choices=newSeq[float](), helpvar="", group="", required=false, optional=false, multi=false, env=""): FloatArg =
     ## A `FloatArg` takes a float value
     ## 
     ## .. code-block:: nim
@@ -268,9 +268,9 @@ proc newFloatArg*(variants: seq[string], help: string, default = 0.0, choices=ne
     ##      doAssert spec.number.seen
     ##      doAssert spec.number.value == 0.25
     result = new(FloatArg)
-    initArg(result, variants, help, default, choices, helpvar, group, required, optional, multi, env)
+    initArg(result, variants, help, defaultVal, choices, helpvar, group, required, optional, multi, env)
 
-proc newIntArg*(variants: seq[string], help: string, default = 0, choices=newSeq[int](), helpvar="", group="", required=false, optional=false, multi=false, env=""): IntArg =
+proc newIntArg*(variants: seq[string], help: string, defaultVal = 0, choices=newSeq[int](), helpvar="", group="", required=false, optional=false, multi=false, env=""): IntArg =
     ## An `IntArg` takes an integer value
     ## 
     ## .. code-block:: nim
@@ -286,9 +286,9 @@ proc newIntArg*(variants: seq[string], help: string, default = 0, choices=newSeq
     ##      doAssert spec.number.seen
     ##      doAssert spec.number.value == 10
     result = new(IntArg)
-    initArg(result, variants, help, default, choices, helpvar, group, required, optional, multi, env)
+    initArg(result, variants, help, defaultVal, choices, helpvar, group, required, optional, multi, env)
 
-proc newCountArg*(variants: seq[string], help: string, default = 0, choices=newSeq[int](), group="", required=false, optional=false, multi=true, env=""): CountArg =
+proc newCountArg*(variants: seq[string], help: string, defaultVal = 0, choices=newSeq[int](), group="", required=false, optional=false, multi=true, env=""): CountArg =
     ## A `CountArg` counts how many times it has been seen
     ## 
     ## .. code-block:: nim
@@ -303,7 +303,7 @@ proc newCountArg*(variants: seq[string], help: string, default = 0, choices=newS
     ##      doAssert success and message.isNone
     ##      doAssert spec.verbosity.count == 3
     result = new(CountArg)
-    initArg(result, variants, help, default, choices, helpvar="", group, required, optional, multi, env)
+    initArg(result, variants, help, defaultVal, choices, helpvar="", group, required, optional, multi, env)
 
 proc newHelpArg*(variants= @["-h", "--help"], help="Show help message", group=""): HelpArg =
     ## If a help arg is seen, a help message will be shown
@@ -444,7 +444,6 @@ proc addArg(specification: Specification, variable: string, arg: Arg) =
                 specification.options[variant] = arg
         else:
             raise newException(SpecificationError, "Arguments must be declared as <argument>, options as -o or --option")
-
 
 proc newSpecification(spec: tuple, prolog: string, epilog: string): Specification =
     ## A specification is the specification of a parser. To create it, we need to:
@@ -886,8 +885,8 @@ proc parse*(specification: tuple, prolog="", epilog="", args: string, command = 
     parse(specification, prolog, epilog, parseCmdLine(args), command)
 
 proc parseOrQuit*(spec: tuple, prolog="", epilog="", args: seq[string] = commandLineParams(), command = extractFilename(getAppFilename())) =
-    ## Attempts to parse the input. If the parse fails or the user has asked
-    ## for a message (e.g. help), show a message and quit
+    ## Attempts to parse the input. If the parse fails or the user has asked for a message (e.g. 
+    ## help), show a message and quit. This is probably the ``proc`` you want for a simple commandline script
     try:
         parse(spec, prolog, epilog, args, command)
     except MessageError:
@@ -898,11 +897,11 @@ proc parseOrQuit*(spec: tuple, prolog="", epilog="", args: seq[string] = command
         quit(message, 1)
 
 proc parseOrQuit*(spec: tuple, prolog="", epilog="", args: string, command: string) =
-    ## Version of `parseOrQuit` taking `args` as a `string` for sugar
+    ## Version of `parseOrQuit` taking `args` as a `string` for convenience
     parseOrQuit(spec, prolog, epilog, parseCmdLine(args), command)
 
 proc parseOrMessage*(spec: tuple, prolog="", epilog="", args: seq[string] = commandLineParams(), command = extractFilename(getAppFilename())): tuple[success: bool, message: Option[string]] =
-    ## Version of `parse` that returns `success` if the parse was sucessful.
+    ## Version of ``parse`` that returns ``success`` if the parse was sucessful.
     ## If the parse fails, or the result of the parse is an informationl message
     ## for the user, `Option[str]` will containing an appropriate message
     try:
@@ -917,6 +916,17 @@ proc parseOrMessage*(spec: tuple, prolog="", epilog="", args: string, command: s
     ## Version of `parseOrMessage` that accepts `args` as a string for debugging sugar
     result = parseOrMessage(spec, prolog, epilog, parseCmdLine(args), command)
 
+proc parseCopy*[S: tuple](specification: S, prolog="", epilog="", args: seq[string], command = extractFilename(getAppFilename())): tuple[success: bool, message: Option[string], spec: Option[S]] =
+    ## Version of ``parse``, similar to ``parseOrMessage`` that returns a copy of the specification 
+    ## if the parse was successful. Crucially this lets you re-use the original specification, should 
+    ## you wish. This is probably the ``proc`` you want for writing tests
+    let parsed = specification.deepCopy
+    let (success, message) = parsed.parseOrMessage(prolog, epilog, args, command)
+    result = (success, message, if success and message.isNone: some(parsed) else: none(S))
+    
+proc parseCopy*[S: tuple](specification: S, prolog="", epilog="", args: string, command = extractFilename(getAppFilename())): tuple[success: bool, message: Option[string], spec: Option[S]] =
+    parseCopy(specification, prolog, epilog, parseCmdLine(args), command)
+
 when isMainModule:
     import unittest
     
@@ -927,7 +937,7 @@ when isMainModule:
                 # Name is a positional argument, by virtue of being surrounded by < and >
                 name: newStringArg(@["<name>"], help="Person to greet"),
                 # --times is an optional argument, by virtue of starting with - and/or --
-                times: newIntArg(@["-t", "--times"], default=1, help="How many times to greet"),
+                times: newIntArg(@["-t", "--times"], defaultVal=1, help="How many times to greet"),
                 # --version will cause 0.1.0 to be printed
                 version: newMessageArg(@["--version"], "0.1.0", help="Prints version"),
                 # --help will cause a help message to be printed
@@ -999,6 +1009,14 @@ Options:
             check(spec.src.values == @["README.rst", "therapist.nimble"])
             check(spec.dest.seen)
             check(spec.dest.value == "to_here")
+
+        test "parseCopy can be reused":
+            let parsed = spec.parseCopy(args="README.rst destination.rst", command="cp")
+            check(parsed.success)
+            check(parsed.message.isNone)
+            check(parsed.spec.isSome)
+            check(parsed.spec.get.src.seen)
+            check(not spec.src.seen)
 
         test "Unexpected options raise a parse error":
             expect(ParseError):
@@ -1110,7 +1128,7 @@ Options:
 
         setup:
             let initspec = (
-                destination: newStringArg(@["<destination>"], default=".", optional=true, help="Location for new repository"),
+                destination: newStringArg(@["<destination>"], defaultVal=".", optional=true, help="Location for new repository"),
                 help: newHelpArg()
             )
             let authspec = (
@@ -1211,10 +1229,11 @@ Options:
                 name: newStringArg(@["<name>"], multi=true, help="Name of new ship")
             )
             let move = (
-                name: newStringArg(@["<name>"], help="Name of new ship"),
+                name: newStringArg(@["<name>"], help="Name of ship to move"),
                 x: newIntArg(@["<x>"], help="x grid reference"),
                 y: newIntArg(@["<y>"], help="y grid reference"),
-                speed: newIntArg(@["--speed"], default=10, help="Speed in knots [default: 10]")
+                speed: newIntArg(@["--speed"], defaultVal=10, help="Speed in knots"),
+                help: newHelpArg()
             )
             let shoot = (
                 x: newIntArg(@["<x>"], help="Name of new ship"),
@@ -1234,7 +1253,7 @@ Options:
 
             let ship = (
                 create: newCommandArg(@["new"], create, help="Create a new ship"),
-                move: newCommandArg(@["move"], move, help="Move a ship"),
+                move: newCommandArg(@["move"], move, prolog="Command to move your ship", help="Move a ship"),
                 shoot: newCommandArg(@["shoot"], shoot, help="Shoot at another ship"),
                 help: newHelpArg()
             )
@@ -1270,6 +1289,28 @@ Options:
                     skip()
                 else:
                     check(message==expected)
+        
+        test "Ship move help":
+            let (success, message) = parseOrMessage(spec, args="ship move -h", prolog=prolog, command="navel_fate")
+            check(success)
+            check(message.isSome)
+            let expected = """
+Command to move your ship
+
+Usage:
+  navel_fate ship move <name> <x> <y>
+  navel_fate ship move -h|--help
+
+Arguments:
+  <name>           Name of ship to move
+  <x>              x grid reference
+  <y>              y grid reference
+
+Options:
+  --speed=<speed>  Speed in knots [default: 10]
+  -h, --help       Show help message""".strip
+            check(message.get==expected)
+
 
         test "Multiple values captured correctly":
             parse(spec, args="ship new victory titanic", command="navel_fate")

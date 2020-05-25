@@ -108,7 +108,7 @@ A simple 'Hello world' example:
         # Name is a positional argument, by virtue of being surrounded by < and >
         name: newStringArg(@["<name>"], help="Person to greet"),
         # --times is an optional argument, by virtue of starting with - and/or --
-        times: newIntArg(@["-t", "--times"], default=1, help="How many times to greet"),
+        times: newIntArg(@["-t", "--times"], defaultVal=1, help="How many times to greet"),
         # --version will cause 0.1.0 to be printed
         version: newMessageArg(@["--version"], "0.1.0", help="Prints version"),
         # --help will cause a help message to be printed
@@ -165,10 +165,10 @@ run ``navel_fate mine --help``.
          name: newStringArg(@["<name>"], multi=true, help="Name of new ship")
    )
    let move = (
-         name: newStringArg(@["<name>"], help="Name of new ship"),
+         name: newStringArg(@["<name>"], help="Name of ship to move"),
          x: newIntArg(@["<x>"], help="x grid reference"),
          y: newIntArg(@["<y>"], help="y grid reference"),
-         speed: newIntArg(@["--speed"], default=10, help="Speed in knots [default: 10]"),
+         speed: newIntArg(@["--speed"], defaultVal=10, help="Speed in knots"),
          help: newHelpArg()
    )
    let shoot = (
@@ -237,7 +237,7 @@ In *rough* order of likelihood of being added:
 - Support for ``+w`` and ``-w`` to equate to ``w=true`` and ``w=false``
 - Integration with ``bash`` / ``fish`` completion scripts
 - Dependent option requirements i.e. because ``--optionA`` appears, ``--optionB`` is required
-- Case insensitive matching
+- Case/style insensitive matching
 - Partial matches for ``commands`` i.e. ``pal pus`` is the same as ``pal push``, if that is the 
   only unambiguous match
 - Support for alternate option characters (e.g. /) or different option semantics (e.g. java-style 
