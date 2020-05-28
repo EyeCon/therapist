@@ -275,7 +275,7 @@ prefer is likely a matter of taste. If you want to explore alternatives, you mig
 .. _parseopt: https://nim-lang.org/docs/parseopt.html
 .. _nim-argparse: https://github.com/iffy/nim-argparse
 .. _docopt.nim: https://github.com/docopt/docopt.nim
-.. _nimdoc: https://maxgrenderjones.bitbucket.io/therapist/therapist.html
-.. _Therapist: https://maxgrenderjones.bitbucket.io/therapist/therapist.html
+.. _nimdoc: https://maxgrenderjones.bitbucket.io/therapist/latest/therapist.html
+.. _Therapist: https://maxgrenderjones.bitbucket.io/therapist/latest/therapist.html
 .. _cligen: https://github.com/c-blake/cligen
 .. _argh: https://pythonhosted.org/argh/
