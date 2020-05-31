@@ -3,6 +3,7 @@ import os
 import options
 import pegs
 import sets
+import sugar
 import strformat
 import strutils
 import tables
@@ -126,6 +127,7 @@ type
     CommandArg* = ref object of Arg
         ## `CommandArg` represents a subcommand, which will be processed with its own parser
         specification*: Specification
+        handler: proc ()
     Alternatives = ref object of RootObj
         seen: bool
         value: Arg
@@ -371,12 +373,14 @@ proc newMessageArg*(variants: seq[string], message: string, help: string, group=
     result.help = help
     result.group = group
 
-proc newCommandArg*(variants: seq[string], specification: tuple, help="", prolog="", epilog="", group=""): CommandArg =
+proc newCommandArg*[S](variants: seq[string], specification: S, help="", prolog="", epilog="", group="", handle: proc(spec: S) = nil): CommandArg =
     result = new(CommandArg)
     result.variants = variants
     result.specification = newSpecification(specification, prolog, epilog)
     result.help = help
     result.group = group
+    if not isnil(handle):
+        result.handler = () => handle(specification)
 
 proc newCommandArg*(variants: string, specificaiton: tuple, help="", prolog="", epilog="", group=""): CommandArg =
     newCommandArg(variants.split(COMMA), specificaiton, help, prolog, epilog, group)
@@ -606,6 +610,10 @@ proc render_help(spec: Specification, command: string): string =
 
     result = fmt"{prolog}{usage}{args}{epilog}".strip()
 
+proc render_help*(spec: tuple, prolog="", epilog="", command=extractFilename(getAppFilename())): string =
+    newSpecification(spec, prolog, epilog).render_help(command)
+
+
 template check_choices*[T](arg: Arg, value: T, variant: string) = 
     ## `check_choices` checks that `value` has been set to one of the acceptable `choices` values
     if len(arg.choices)>0 and not (value in arg.choices):
@@ -783,6 +791,9 @@ proc consume(arg: Arg, args: seq[string], variant: string, pos: int, command: st
         parse(CommandArg(arg).specification, args, command=fmt"{command} {variant}", start=pos)
         # Eat 'em all
         result = len(args) - pos
+        let handler = CommandArg(arg).handler
+        if not isnil(handler):
+            handler()
 
 func consume(alternatives: Alternatives, arg: Arg) = 
     alternatives.value = arg
@@ -847,11 +858,11 @@ proc parse(specification: Specification, args: seq[string], command: string, sta
                         discard option.consume(@[], variant, 0, command)
                 pos += 1
             else:
-                if len(specification.commandList)>0:
-                    raise newException(ParseError, fmt"Unexpected command: {args[pos]}")
-                elif len(specification.argumentList)>0:
+                if len(specification.argumentList)>0:
                     positionals.add(args[pos])
                     pos += 1
+                elif len(specification.commandList)>0:
+                    raise newException(ParseError, fmt"Unexpected command: {args[pos]}")
                 else:
                     raise newException(ParseError, fmt"Unexpected argument: {args[pos]}")
         
@@ -920,13 +931,13 @@ proc parseOrMessage*(spec: tuple, prolog="", epilog="", args: string, command: s
     ## Version of `parseOrMessage` that accepts `args` as a string for debugging sugar
     result = parseOrMessage(spec, prolog, epilog, parseCmdLine(args), command)
 
-proc parseCopy*[S: tuple](specification: S, prolog="", epilog="", args: seq[string], command = extractFilename(getAppFilename())): tuple[success: bool, message: Option[string], spec: Option[S]] =
+proc parseCopy*[S: tuple](specification: S, prolog="", epilog="", args: seq[string] = commandLineParams(), command = extractFilename(getAppFilename())): tuple[success: bool, message: Option[string], spec: Option[S]] =
     ## Version of ``parse``, similar to ``parseOrMessage`` that returns a copy of the specification 
     ## if the parse was successful. Crucially this lets you re-use the original specification, should 
     ## you wish. This is probably the ``proc`` you want for writing tests
     let parsed = specification.deepCopy
     let (success, message) = parsed.parseOrMessage(prolog, epilog, args, command)
-    result = (success, message, if success and message.isNone: some(parsed) else: none(S))
+    result = (success: success, message: message, spec: if success and message.isNone: some(parsed) else: none(S))
     
 proc parseCopy*[S: tuple](specification: S, prolog="", epilog="", args: string, command = extractFilename(getAppFilename())): tuple[success: bool, message: Option[string], spec: Option[S]] =
     parseCopy(specification, prolog, epilog, parseCmdLine(args), command)
