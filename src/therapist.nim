@@ -125,9 +125,14 @@ type
         ## If this argument is provided, a `MessageError` containing a message will be raised
         message: string
     CommandArg* = ref object of Arg
-        ## `CommandArg` represents a subcommand, which will be processed with its own parser
+        ## ``CommandArg`` represents a subcommand, which will be processed with its own parser
         specification*: Specification
         handler: proc ()
+    HelpCommandArg* = ref object of CommandArg
+        ## ``HelpCommandArg`` allows you to create a command that prints help
+    MessageCommandArg* = ref object of CommandArg
+        ## ``MessageCommandArg`` allows you to create a command that prints a message
+        message: string
     Alternatives = ref object of RootObj
         seen: bool
         value: Arg
@@ -354,6 +359,16 @@ proc newHelpArg*(variants= @["-h", "--help"], help="Show help message", group=""
     result.help = help
     result.group = group
 
+proc newHelpCommandArg*(variants= @["help"], help="Show help message", group=""): HelpCommandArg =
+    result = new(HelpCommandArg)
+    result.variants = variants
+    result.specification = newSpecification((help: newHelpArg()), "", "")
+    result.help = help
+    result.group = group
+
+proc newHelpCommandArg*(variants: string, help="Show help message", group=""): HelpCommandArg =
+    newHelpCommandArg(variants.split(COMMA), help, group)
+
 proc newMessageArg*(variants: seq[string], message: string, help: string, group=""): MessageArg =
     ## If a `MessageArg` is seen, a message will be shown
     ## 
@@ -373,6 +388,17 @@ proc newMessageArg*(variants: seq[string], message: string, help: string, group=
     result.help = help
     result.group = group
 
+proc newMessageCommandArg*(variants: seq[string], message: string, help="Show help message", group=""): MessageCommandArg =
+    result = new(MessageCommandArg)
+    result.variants = variants
+    result.specification = newSpecification((help: newHelpArg()), "", "")
+    result.message = message
+    result.help = help
+    result.group = group
+
+proc newMessageCommandArg*(variants: seq, message: string, help="Show help message", group=""): MessageCommandArg =
+    newMessageCommandArg(variants.split(COMMA), message, help, group)
+
 proc newCommandArg*[S](variants: seq[string], specification: S, help="", prolog="", epilog="", group="", handle: proc(spec: S) = nil): CommandArg =
     result = new(CommandArg)
     result.variants = variants
@@ -382,8 +408,8 @@ proc newCommandArg*[S](variants: seq[string], specification: S, help="", prolog=
     if not isnil(handle):
         result.handler = () => handle(specification)
 
-proc newCommandArg*(variants: string, specificaiton: tuple, help="", prolog="", epilog="", group=""): CommandArg =
-    newCommandArg(variants.split(COMMA), specificaiton, help, prolog, epilog, group)
+proc newCommandArg*[S](variants: string, specification: S, help="", prolog="", epilog="", group="", handle: proc(spec: S) = nil): CommandArg =
+    newCommandArg(variants.split(COMMA), specification, help, prolog, epilog, group)
 
 proc newAlternatives(alternatives: tuple): Alternatives =
     result = new(Alternatives)
@@ -753,7 +779,17 @@ method register(arg: MessageArg, variant: string) =
     procCall Arg(arg).register(variant)
     raise newException(MessageError, arg.message)
 
+method register(arg: MessageCommandArg, variant: string) =
+    ## This will cause a `MessageError` to be passed back up the chain containing the text from the MessageArg
+    procCall Arg(arg).register(variant)
+    raise newException(MessageError, arg.message)
+
 method register(arg: HelpArg, variant: string) =
+    ## This will cause a `HelpError` to be passed back up the chain, telling the parser to render a help message
+    procCall Arg(arg).register(variant)
+    raise newException(HelpError, "Help")
+
+method register(arg: HelpCommandArg, variant: string) =
     ## This will cause a `HelpError` to be passed back up the chain, telling the parser to render a help message
     procCall Arg(arg).register(variant)
     raise newException(HelpError, "Help")
