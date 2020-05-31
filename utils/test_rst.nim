@@ -4,6 +4,7 @@ import packages/docutils/rst
 import posix_utils
 import strformat
 import strutils
+import terminal
 import ../src/therapist
 
 const SKIP = "doctest: skip"
@@ -30,35 +31,51 @@ proc gatherExamples(node: PRstNode, examples: var seq[string]) =
         for son in node.sons:
             gatherExamples(son, examples)
 
-proc testFile(filename: string): int =
+proc testFile(filename: string, verbose: bool): int =
     let text = readFile(filename)
     var hastoc: bool
     let node = rstParse(text, filename, 0, 0, hastoc, {})
     var examples = newSeq[string]()
     node.gatherExamples(examples)
     withTempDir("examples"):
-
         var master = newSeq[string]()
         for index, example in examples:
             if example.contains(SKIP):
                 continue
             let codefile = tempdirname / fmt"{filename.splitFile().name}_example_{index}.nim"
             codefile.writeFile(example)
-            echo example
+            if verbose:
+                echo example
             master.add(fmt"import {filename.splitFile().name}_example_{index}")
         let master_nim = tempdirname / "master.nim"
         master_nim.writeFile(master.join("\n"))
-        return os.execShellCmd(fmt"nim c -r --hints:off --warnings:off '{master_nim}'")
+        result = os.execShellCmd(fmt"nim c -r --hints:off --warnings:off '{master_nim}'")
+        if result==0:
+            if stdout.isatty:
+                styledEcho fgGreen, styleBright, "  [OK] ", resetStyle, fmt"{filename} - {len(examples)} examples"
+            else:
+                echo fmt"  [OK] {filename} - {len(examples)} examples"
+        else:
+            if stdout.isatty:
+                styledEcho  fgRed, styleBright, "  [Failed] ", resetStyle, fmt"{filename} - {len(examples)} examples"
+            else:
+                echo fmt"  [Failed] {filename} - {len(examples)} examples"
+    
 
 
 when isMainModule:
     let spec = (
         filename: newFileArg(@["<filename>"], help="RST file to test", multi=true),
+        verbose: newCountArg(@["-v", "--verbose"], help="More verbose output"),
         help: newHelpArg()
     )
 
     spec.parseOrQuit(prolog="Run tests against code examples in an rst file")
+    if stdout.isatty:
+        styledEcho fgBlue, styleBright, "\n[Doctest]", resetStyle
+    else:
+        echo "\n[Doctest]"
     for f in spec.filename.values:
-        let status = testFile(f)
+        let status = testFile(f, spec.verbose.seen)
         if status!=0:
             quit(status)

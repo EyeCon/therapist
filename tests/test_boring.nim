@@ -2,21 +2,25 @@ import options
 import strutils
 import unittest
 
-import therapist
+import ../src/therapist
 
 
 ## Whilst the other tests are intended as illustrations of how you might want to use ``therapist``, the 
 ## tests in this file are intended to be the simplest possible tests of ``therapist`` functionality for 
 ## verification purposes
 
-suite "Basic option parsing":
+suite "Basic option parsing": 
     ## Option Tests:
     ##  - Basic value types can be parsed
     ##  - Incorrect value types throws an error
+    ##  - Unexpected options cause an error
     ##  - Therapist provides sensible defaults
     ##  - Defaults can be overriden
     ##  - Defaults show up in help messages
     ##  - Help vars can be used to provide clearer help messages
+    ## TODO:
+    ##  - Test -y/-n
+    ##  - Test --[no]option
     setup:
         let boring = (
             intval: newIntArg(@["-i", "--int"], help="Some int value"),
@@ -83,7 +87,18 @@ suite "Basic option parsing":
             let parsed = boring.parseCopy(args=args, command="boring")
             check(not parsed.success)
             check(not parsed.spec.isSome)
-            check(parsed.message.isSome)            
+            check(parsed.message.isSome)
+
+    test "Unexpected options cause parsing to fail":
+        let short = boring.parseCopy(args="-x", command="boring")
+        check(not short.success)
+        check(short.spec.isNone)
+        check(short.message.isSome)
+        let long = boring.parseCopy(args="--xxx", command="boring")
+        check(not long.success)
+        check(long.spec.isNone)
+        check(long.message.isSome)
+
 
     test "Check values are set to sensible defaults if no default is provided":
         let parsed = boring.parseCopy(args="", command="boring")
@@ -172,3 +187,40 @@ Options:
   -h, --help        Show help message""".strip()
         check(message==expected)
 
+suite "Specification errors":
+    test "Options and arguments cannot be mixed":
+        expect(SpecificationError):
+            let spec = (
+                option_and_argument: newStringArg(@["-s", "<source>"], help="Source"),
+            )
+            parse(spec, args = @["-s", "foo"])
+
+    test "Arguments and options cannot be mixed":
+        expect(SpecificationError):
+            let spec = (
+                argument_and_option: newStringArg(@["<source>", "-s"], help="Source"),
+            )
+            parse(spec, args = @["foo"])
+    
+    test "Short options must be single letter":
+        let spec = (
+            strange_short_option: newStringArg(@["-source"], help="Source"),
+        )
+        expect(SpecificationError):
+            parse(spec, args = @["foo"])
+    
+    test "Options cannot be duplicated":
+        expect(SpecificationError):
+            let spec = (
+                source: newStringArg(@["-s", "--source"], help="Source"),
+                secret: newStringArg(@["-s", "--secret"], help="Secret"),
+            )
+            parse(spec, args = @["foo"])
+
+    test "Arguments cannot be duplicated":
+        expect(SpecificationError):
+            let spec = (
+                source: newStringArg(@["<file>"], help="Source"),
+                destination: newStringArg(@["<file>"], help="Destination"),
+            )
+            parse(spec, args = @["from", "to"])

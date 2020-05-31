@@ -15,6 +15,10 @@ import uri
 const INDENT_WIDTH = 2
 const INDENT = spaces(INDENT_WIDTH)
 
+let COMMA = peg """
+    comma <- \s*','\s*
+"""
+
 # Allows you to capture the o / option in -o / --option
 let OPTION_VARIANT_FORMAT = peg"""
         option <- ^ (shortOption / longOption) $
@@ -121,7 +125,7 @@ type
         message: string
     CommandArg* = ref object of Arg
         ## `CommandArg` represents a subcommand, which will be processed with its own parser
-        specification: Specification
+        specification*: Specification
     Alternatives = ref object of RootObj
         seen: bool
         value: Arg
@@ -240,6 +244,9 @@ proc newStringArg*(variants: seq[string], help: string, defaultVal = "", choices
     result = new(StringArg)
     initArg(result, variants, help, defaultVal, choices, helpvar, group, required, optional, multi, env)
 
+proc newStringArg*(variants: string, help: string, defaultVal = "", choices=newSeq[string](), helpvar="", group="", required=false, optional=false, multi=false, env=""): StringArg =
+    newStringArg(variants.split(COMMA), help, defaultVal, choices, helpvar, group, required, optional, multi, env)
+
 func initPromptArg(promptArg: PromptArg, prompt: string, secret: bool) =
     promptArg.prompt = prompt
     promptArg.secret = secret
@@ -288,6 +295,9 @@ proc newIntArg*(variants: seq[string], help: string, defaultVal = 0, choices=new
     result = new(IntArg)
     initArg(result, variants, help, defaultVal, choices, helpvar, group, required, optional, multi, env)
 
+proc newIntArg*(variants: string, help: string, defaultVal = 0, choices=newSeq[int](), helpvar="", group="", required=false, optional=false, multi=false, env=""): IntArg =
+    newIntArg(variants.split(COMMA), help, defaultVal, choices, helpvar, group, required, optional, multi, env)
+
 proc newCountArg*(variants: seq[string], help: string, defaultVal = 0, choices=newSeq[int](), group="", required=false, optional=false, multi=true, env=""): CountArg =
     ## A `CountArg` counts how many times it has been seen
     ## 
@@ -304,6 +314,9 @@ proc newCountArg*(variants: seq[string], help: string, defaultVal = 0, choices=n
     ##      doAssert spec.verbosity.count == 3
     result = new(CountArg)
     initArg(result, variants, help, defaultVal, choices, helpvar="", group, required, optional, multi, env)
+
+proc newCountArg*(variants: string, help: string, defaultVal = 0, choices=newSeq[int](), group="", required=false, optional=false, multi=true, env=""): CountArg =
+    newCountArg(variants.split(COMMA), help, defaultVal, choices, group, required, optional, multi, env)
 
 proc newHelpArg*(variants= @["-h", "--help"], help="Show help message", group=""): HelpArg =
     ## If a help arg is seen, a help message will be shown
@@ -365,6 +378,9 @@ proc newCommandArg*(variants: seq[string], specification: tuple, help="", prolog
     result.help = help
     result.group = group
 
+proc newCommandArg*(variants: string, specificaiton: tuple, help="", prolog="", epilog="", group=""): CommandArg =
+    newCommandArg(variants.split(COMMA), specificaiton, help, prolog, epilog, group)
+
 proc newAlternatives(alternatives: tuple): Alternatives =
     result = new(Alternatives)
 
@@ -422,7 +438,6 @@ proc addArg(specification: Specification, variable: string, arg: Arg) =
                 arg.helpVar = fmt"<{helpVar}>"
             else:
                 arg.helpVar = fmt"<{arg.helpVar}>"
-
 
     elif first.startsWith('<'):
         specification.argumentList.add(arg)
@@ -591,30 +606,6 @@ proc render_help(spec: Specification, command: string): string =
 
     result = fmt"{prolog}{usage}{args}{epilog}".strip()
 
-    # if len(spec.commandList)>0:
-    #     lines = @["\n\nCommands:"]
-    #     for cmd in spec.commandList:
-    #         let help = wrapWords(cmd.help, help_width).indent(help_indent).strip()
-    #         lines.add(INDENT & alignLeft(cmd.variants.join(", "), variant_width) & INDENT & help)
-    # let commands = lines.join("\n")
-    # lines = newSeq[string]()
-    # if len(spec.argumentList)>0:
-    #     lines = @["\n\nArguments:"]
-    #     for argument in spec.argumentList:
-    #         let help = wrapWords(argument.help, help_width).indent(help_indent).strip()
-    #         lines.add(INDENT & alignLeft(argument.variants.join(", "), variant_width) & INDENT & help)
-    # let arguments = lines.join("\n")
-    # lines = newSeq[string]()
-    # if len(spec.optionList)>0:
-    #     lines = @["\n\nOptions:"]
-    #     for option in spec.optionList:
-    #         let help = wrapWords(option.help, help_width).indent(help_indent).strip()
-    #         let helpVar = if len(option.helpVar)>0: "=" & option.helpVar else: ""
-    #         lines.add(INDENT & alignLeft(option.variants.join(", ") & helpVar, variant_width) & INDENT & help)
-    # let options = lines.join("\n")
-
-    # result = fmt"""{prolog}{usage}{commands}{arguments}{options}{epilog}""".strip()
-
 template check_choices*[T](arg: Arg, value: T, variant: string) = 
     ## `check_choices` checks that `value` has been set to one of the acceptable `choices` values
     if len(arg.choices)>0 and not (value in arg.choices):
@@ -637,7 +628,7 @@ method parse(arg: FloatArg, value: string, variant: string) =
         arg.value = parsed
         arg.values.add(parsed)
     except ValueError:
-        raise newException(ParseError, fmt"Expected a float for {variant}, got: {value}")
+        raise newException(ParseError, fmt"Expected a float for {variant}, got: '{value}'")
 
 method parse(arg: StringArg, value: string, variant: string) =
     arg.check_choices(value, variant)
@@ -650,11 +641,16 @@ method parse(arg: StringPromptArg, value: string, variant: string) =
     arg.values.add(value)
 
 template defineArg*[T](TypeName: untyped, cons: untyped, name: string, parseT: proc (value: string): T, defaultT: T) =
-    ## `defineArg` is a concession to the power of magic. If you want to define your own `ValueArg` for type T,
-    ## you simply need to pass in a method that is able to parse a string into a T and a sensible default value
-    ## default(T) is often a good bet, but is not defined for all types. Beware, the error messages can get gnarly,
-    ## and generated docstrings will be ugly
+    ## ``defineArg`` is a concession to the power of magic. If you want to define your own ``ValueArg``
+    ## for type ``T``, you simply need to pass in a method that is able to parse a string into a ``T``
+    ## and a sensible default value. ``default(T)`` is often a good bet, but is not defined for all
+    ## types.
     ## 
+    ## If ``parseT`` fails by raising a ``ValueError`` an error message will be written for you. To
+    ## provide a custom error message, raise a ``ParseError``
+    ##
+    ## Beware, the error messages can get gnarly, generated docstrings will be ugly
+    ##
     ## .. code-block:: nim
     ##    :test:
     ##    
@@ -687,6 +683,9 @@ template defineArg*[T](TypeName: untyped, cons: untyped, name: string, parseT: p
         ## Template-defined constructor - see help for `newStringArg` for the meaning of parameters
         result = new(TypeName)
         result.initArg(variants, help, defaultVal, choices, helpvar, group, required, optional, multi, env)
+
+    proc cons*(variants: string, help: string, defaultVal: T = defaultT, choices = newSeq[T](), helpvar="", group="", required=false, optional=false, multi=false, env=""): TypeName =
+        cons(variants.split(COMMA), help, defaultVal, choices, helpvar, group, required, optional, multi, env)
 
     method render_default(arg: TypeName): string = 
         if arg.defaultVal!=default(typedesc(T)): "[default: " & $arg.defaultVal & "]" else: ""
@@ -739,21 +738,21 @@ method register*(arg: Arg, variant: string) {.base, locks: "unknown" .} =
     ## e.g. to print help, now is the time to do it
     arg.count += 1
     if arg.count>1 and not arg.multi:
-        raise newException(ParseError, fmt"Duplicate occurrence of {variant}")
+        raise newException(ParseError, fmt"Duplicate occurrence of '{variant}'")
 
 method register(arg: MessageArg, variant: string) =
     ## This will cause a `MessageError` to be passed back up the chain containing the text from the MessageArg
-    procCall arg.Arg.register(variant)
+    procCall Arg(arg).register(variant)
     raise newException(MessageError, arg.message)
 
 method register(arg: HelpArg, variant: string) =
     ## This will cause a `HelpError` to be passed back up the chain, telling the parser to render a help message
-    procCall arg.Arg.register(variant)
+    procCall Arg(arg).register(variant)
     raise newException(HelpError, "Help")
 
 method register*(arg: CountArg, variant: string) =
     if arg.count != 0 and not arg.multi:
-        raise newEXception(ParseError, fmt"Duplicate occurence of {variant}")
+        raise newEXception(ParseError, fmt"Duplicate occurence of '{variant}'")
     arg.count += (if variant in arg.down: -1 else: 1)
         
 func seen*(arg: Arg): bool =
@@ -848,14 +847,19 @@ proc parse(specification: Specification, args: seq[string], command: string, sta
                         discard option.consume(@[], variant, 0, command)
                 pos += 1
             else:
-                positionals.add(args[pos])
-                pos += 1
+                if len(specification.commandList)>0:
+                    raise newException(ParseError, fmt"Unexpected command: {args[pos]}")
+                elif len(specification.argumentList)>0:
+                    positionals.add(args[pos])
+                    pos += 1
+                else:
+                    raise newException(ParseError, fmt"Unexpected argument: {args[pos]}")
         
         # Check required options have been supplied
         for option in specification.optionList:
             if option.required and not option.seen:
                 let variants = option.variants.join(", ")
-                raise newException(ParseError, fmt"Missing required option: {variants}")
+                raise newException(ParseError, fmt"Missing required option: '{variants}'")
 
         pos = 0
 
@@ -1083,261 +1087,6 @@ Options:
             expect(ParseError):
                 parse(spec, args = @["source"])
 
-    suite "Specification errors":
-        test "Options and arguments cannot be mixed":
-            expect(SpecificationError):
-                let spec = (
-                    option_and_argument: newStringArg(@["-s", "<source>"], help="Source"),
-                )
-                parse(spec, args = @["-s", "foo"])
-
-        test "Arguments and options cannot be mixed":
-            expect(SpecificationError):
-                let spec = (
-                    argument_and_option: newStringArg(@["<source>", "-s"], help="Source"),
-                )
-                parse(spec, args = @["foo"])
-        
-        test "Short options must be single letter":
-            let spec = (
-                strange_short_option: newStringArg(@["-source"], help="Source"),
-            )
-            expect(SpecificationError):
-                parse(spec, args = @["foo"])
-        
-        test "Options cannot be duplicated":
-            expect(SpecificationError):
-                let spec = (
-                    source: newStringArg(@["-s", "--source"], help="Source"),
-                    secret: newStringArg(@["-s", "--secret"], help="Secret"),
-                )
-                parse(spec, args = @["foo"])
-
-        test "Arguments cannot be duplicated":
-            expect(SpecificationError):
-                let spec = (
-                    source: newStringArg(@["<file>"], help="Source"),
-                    destination: newStringArg(@["<file>"], help="Destination"),
-                )
-                parse(spec, args = @["from", "to"])
-
-
-    suite "pal":
-        let prolog="An SCM that doesn't hate you"
-        let epilog="""For more detail on e.g. the init command, run 'pal init --help'""".unindent()
-
-        setup:
-            let initspec = (
-                destination: newStringArg(@["<destination>"], defaultVal=".", optional=true, help="Location for new repository"),
-                help: newHelpArg()
-            )
-            let authspec = (
-                help: newHelpArg(),
-                user: newStringArg(@["-u", "--user"], required=true, help="Username"),
-                email: newStringArg(@["-e", "--email"], help="Email address")
-            )
-            let spec = (
-                help: newHelpArg(),
-                auth: newCommandArg(@["auth"], authspec, prolog="Set authentication parameters", help="Set authentication parameters"),
-                init: newCommandArg(@["init"], initspec, prolog="Create a new repository", help="Create a new repository"),
-                push: newCommandArg(
-                    @["push"],
-                    (
-                        destination: newStringArg(@["<destination>"], help="Location of destination repository"),
-                        force: newCountArg(@["-f", "--force"], help="Force push"),
-                        help: newHelpArg()
-                    ),
-                    prolog="Push changes to another repository",
-                    help="Push changes to another repository",
-                ),
-            )
-        
-        test "Help raises MessageError":
-            expect(MessageError):
-                parse(spec, prolog, epilog, args="--help", command="pal")
-        
-        test "Help message format":
-            try:
-                parse(spec, prolog, epilog, args="--help", command="pal")
-            except MessageError:
-                let message = getCurrentExceptionMsg()
-                let expected = """
-An SCM that doesn't hate you
-
-Usage:
-  pal auth
-  pal init [<destination>]
-  pal push <destination>
-  pal -h|--help
-
-Commands:
-  auth        Set authentication parameters
-  init        Create a new repository
-  push        Push changes to another repository
-
-Options:
-  -h, --help  Show help message
-
-For more detail on e.g. the init command, run 'pal init --help'""".strip()
-                check(message==expected)
-
-        test "Subcommand help raises MessageError":
-            expect(MessageError):
-                parse(spec, args="init --help", command="pal")
-        
-        test "Subcommand help format":
-            try:
-                parse(spec, args="init --help", command="pal")
-            except MessageError:
-                let message = getCurrentExceptionMsg()
-                let expected = """
-Create a new repository
-
-Usage:
-  pal init [<destination>]
-  pal init -h|--help
-
-Arguments:
-  <destination>  Location for new repository [default: .]
-
-Options:
-  -h, --help     Show help message""".strip()
-                check(message==expected)
-
-        test "Subcommand parsing":
-            parse(spec, args="init destination", command="pal")
-            check(spec.init.seen)
-            check(initspec.destination.seen)
-            check(initspec.destination.value=="destination")
-        
-        test "Optional Arguments with defaults":
-            parse(spec, args="init", command="pal")
-            check(spec.init.seen)
-            check(initspec.destination.value==".")
-
-        test "Required options":
-            expect(ParseError):
-                parse(spec, args="auth", command="pal")
-    
-    suite "Navel Fate":
-        ## An intepretation of what the naval fate docopt example is intended to do
-        
-        let prolog = "Navel Fate."
-        
-        setup:
-            let create = (
-                name: newStringArg(@["<name>"], multi=true, help="Name of new ship")
-            )
-            let move = (
-                name: newStringArg(@["<name>"], help="Name of ship to move"),
-                x: newIntArg(@["<x>"], help="x grid reference"),
-                y: newIntArg(@["<y>"], help="y grid reference"),
-                speed: newIntArg(@["--speed"], defaultVal=10, help="Speed in knots"),
-                help: newHelpArg()
-            )
-            let shoot = (
-                x: newIntArg(@["<x>"], help="Name of new ship"),
-                y: newIntArg(@["<y>"], help="Name of new ship"),
-            )
-            let state = (
-                moored: newCountArg(@["--moored"], help="Moored (anchored) mine"),
-                drifting: newCountArg(@["--drifting"], help="Drifting mine"),
-            )
-            let mine = (
-                action: newStringArg(@["<action>"], choices = @["set", "remove"], help="Action to perform"),
-                x: newIntArg(@["<x>"], help="Name of new ship"),
-                y: newIntArg(@["<y>"], help="Name of new ship"),
-                state: state,
-                help: newHelpArg()
-            ) ## Todo: set or remove
-
-            let ship = (
-                create: newCommandArg(@["new"], create, help="Create a new ship"),
-                move: newCommandArg(@["move"], move, prolog="Command to move your ship", help="Move a ship"),
-                shoot: newCommandArg(@["shoot"], shoot, help="Shoot at another ship"),
-                help: newHelpArg()
-            )
-
-            let spec = (
-                ship: newCommandArg(@["ship"], ship, help="Ship commands"),
-                mine: newCommandArg(@["mine"], mine, help="Mine commands"),
-                help: newHelpArg()
-            )
-        
-        test "Fate Help":
-            try:
-                parse(spec, args="-h", prolog=prolog, command="navel_fate")
-            except MessageError:
-                let message = getCurrentExceptionMsg()
-                let expected = """
-Navel Fate.
-
-Usage:
-  navel_fate ship new <name>...
-  navel_fate ship move <name> <x> <y>
-  navel_fate ship shoot <x> <y>
-  navel_fate mine (set|remove) <x> <y>
-  navel_fate -h|--help
-
-Commands:
-  ship        Ship commands
-  mine        Mine commands
-
-Options:
-  -h, --help  Show help message""".strip()
-                if len(expected)==0:
-                    skip()
-                else:
-                    check(message==expected)
-        
-        test "Ship move help":
-            let (success, message) = parseOrMessage(spec, args="ship move -h", prolog=prolog, command="navel_fate")
-            check(success)
-            check(message.isSome)
-            let expected = """
-Command to move your ship
-
-Usage:
-  navel_fate ship move <name> <x> <y>
-  navel_fate ship move -h|--help
-
-Arguments:
-  <name>           Name of ship to move
-  <x>              x grid reference
-  <y>              y grid reference
-
-Options:
-  --speed=<speed>  Speed in knots [default: 10]
-  -h, --help       Show help message""".strip
-            check(message.get==expected)
-
-
-        test "Multiple values captured correctly":
-            parse(spec, args="ship new victory titanic", command="navel_fate")
-            check(spec.ship.seen)
-            check(ship.create.seen)
-            check(create.name.value == "titanic")
-            check(create.name.values == @["victory", "titanic"])
-
-        test "Nested subcommands parse correctly":
-            parse(spec, args="ship move victory 1 9", command="navel_fate")
-            check(spec.ship.seen)
-            check(ship.move.seen)
-            check(move.name.value=="victory")
-            check(move.x.value==1)
-            check(move.y.value==9)
-        
-        test "Constrained values are enforced":
-            expect(ParseError):
-                parse(spec, args="mine add 1 9", command="navel_fate")
-
-        test "Constrained values parse correctly":
-            parse(spec, args="mine set 1 9", command="navel_fate")
-            check(spec.mine.seen)
-            check(mine.action.value=="set")
-            check(mine.x.value==1)
-            check(mine.y.value==9)
-
     suite "Peg test":
         test "Option no format":
             var matches: array[2, string]
@@ -1368,9 +1117,11 @@ Options:
             check("-b / -w" =~ OPTION_VARIANT_SHORT_ALT_FORMAT)
             check(not ("-b" =~ OPTION_VARIANT_SHORT_ALT_FORMAT))
             check(not ("-b / -w / -g" =~ OPTION_VARIANT_SHORT_ALT_FORMAT))
+        
+        test "Comma split":
+            check("-o, --option".split(COMMA) == @["-o", "--option"])
 
 # Outstanding
 #  - Display options in usage?
-#  - Add defaults/choices to help?
-#  - Option/Argument groups
+#  - Add choices to help?
 #  - Override help
