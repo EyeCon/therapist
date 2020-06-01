@@ -1,4 +1,3 @@
-import options
 import strutils
 import unittest
 

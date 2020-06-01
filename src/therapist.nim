@@ -11,6 +11,8 @@ import terminal
 import std/wordwrap
 import uri
 
+export options.get, options.isSome, options.isNone
+
 ## .. include:: ../README.rst
 
 const INDENT_WIDTH = 2

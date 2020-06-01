@@ -1,9 +1,14 @@
+scratch
+
+# Build artifacts
 therapist
-Icon?
-.sync
-.vscode
 *.css
 *.html
 build
 utils/test_rst
-scratch
+
+# OS rubbish
+Icon?
+.sync
+.vscode
+.DS_Store

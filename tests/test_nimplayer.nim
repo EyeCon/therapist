@@ -1,5 +1,4 @@
 import ../src/therapist
-import options
 import strutils
 import unittest
 
