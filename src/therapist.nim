@@ -3,6 +3,7 @@ import os
 import options
 import pegs
 import sets
+import sequtils
 import sugar
 import strformat
 import strutils
@@ -411,7 +412,7 @@ proc newCommandArg*[S](variants: seq[string], specification: S, help="", prolog=
         result.handler = () => handle(specification)
 
 proc newCommandArg*[S](variants: string, specification: S, help="", prolog="", epilog="", group="", handle: proc(spec: S) = nil): CommandArg =
-    newCommandArg(variants.split(COMMA), specification, help, prolog, epilog, group)
+    newCommandArg(variants.split(COMMA), specification, help, prolog, epilog, group, handle)
 
 proc newAlternatives(alternatives: tuple): Alternatives =
     result = new(Alternatives)
@@ -450,7 +451,7 @@ proc addArg(specification: Specification, variable: string, arg: Arg) =
                 CountArg(arg).down.incl(down)
             elif variant.match(OPTION_VARIANT_LONG_ALT_FORMAT, matches):
                 if not (arg of CountArg):
-                    raise newException(SpecificationError, fmt "Option {variant} format is only supported for CountArgs")
+                    raise newException(SpecificationError, fmt"Option {variant} format is only supported for CountArgs")
                 let (up, down) = (fmt"--{matches[0]}", fmt"--{matches[1]}")
                 specification.options[up] = arg
                 specification.options[down] = arg
@@ -478,19 +479,21 @@ proc addArg(specification: Specification, variable: string, arg: Arg) =
         for variant in arg.variants:
             if variant =~ ARGUMENT_VARIANT_FORMAT:
                 if variant in specification.arguments:
-                    raise newException(SpecificationError, "Argument {variant} defined twice")
+                    raise newException(SpecificationError, fmt"Argument {variant} already defined")
                 specification.arguments[variant] = arg 
             else:
-                raise newException(SpecificationError, "Argument {variant} must be in the form <argument>")
+                raise newException(SpecificationError, fmt"Argument {variant} must be in the form <argument>")
     else:
         if arg of CommandArg:
             specification.commandList.add(CommandArg(arg))
             specification.addToGroup(arg, "Commands")
             arg.kind = akCommand
             for variant in arg.variants:
+                if variant in specification.options:
+                    raise newException(SpecificationError, fmt"Command {variant} already defined")
                 specification.options[variant] = arg
         else:
-            raise newException(SpecificationError, "Arguments must be declared as <argument>, options as -o or --option")
+            raise newException(SpecificationError, fmt"Arguments must be declared as <argument>, options as -o or --option - got '{first}'")
 
 proc newSpecification(spec: tuple, prolog: string, epilog: string): Specification =
     ## A specification is the specification of a parser. To create it, we need to:
@@ -586,6 +589,11 @@ proc render_usage(spec: Specification, command: string, lines: var seq[string]) 
                 example &= "..."
         lines.add(example)
 
+proc rewrap(text: string, width=80, newLine="\n"): string =
+    var paragraphs = text.split(peg"break <- \n \n+")
+    paragraphs.apply((line: string) => wrapWords(line.replace("\n", " "), width, newLine=newLine))
+    paragraphs.join(newLine & newLine)
+
 proc render_help(spec: Specification, command: string): string =
     var lines = @["Usage:"]
     # Fetch a list of usage examples
@@ -620,20 +628,20 @@ proc render_help(spec: Specification, command: string): string =
         for arg in args:
             case arg.kind:
                 of akCommand:
-                    let help = wrapWords(arg.help, help_width).indent(help_indent).strip()
+                    let help = rewrap(arg.help, help_width).indent(help_indent).strip()
                     lines.add(INDENT & alignLeft(arg.variants.join(", "), variant_width) & INDENT & help)
                 of akPositional:
                     let defaultHelp = if arg.optional: " " & arg.render_default() else: ""
-                    let help = wrapWords(arg.help & defaultHelp, help_width).indent(help_indent).strip()
+                    let help = rewrap(arg.help & defaultHelp, help_width).indent(help_indent).strip()
                     lines.add(INDENT & alignLeft(arg.variants.join(", "), variant_width) & INDENT & help)
                 of akOptional:
                     let defaultHelp = if not arg.required: " " & arg.render_default() else: ""
-                    let help = wrapWords(arg.help & defaultHelp, help_width).indent(help_indent).strip()
+                    let help = rewrap(arg.help & defaultHelp, help_width).indent(help_indent).strip()
                     let helpVar = if len(arg.helpVar)>0: "=" & arg.helpVar else: ""
                     lines.add(INDENT & alignLeft(arg.variants.join(", ") & helpVar, variant_width) & INDENT & help)
     
-    let prolog = if len(spec.prolog)>0: wrapWords(spec.prolog, max_width) & "\n\n" else: spec.prolog
-    let epilog = if len(spec.epilog)>0: "\n\n" & wrapWords(spec.epilog, max_width) else: spec.epilog
+    let prolog = if len(spec.prolog)>0: rewrap(spec.prolog, max_width) & "\n\n" else: spec.prolog
+    let epilog = if len(spec.epilog)>0: "\n\n" & rewrap(spec.epilog, max_width) else: spec.epilog
     let args = lines.join("\n")
 
     result = fmt"{prolog}{usage}{args}{epilog}".strip()
