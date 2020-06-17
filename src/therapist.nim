@@ -12,7 +12,10 @@ import terminal
 import std/wordwrap
 import uri
 
+import therapistpkg/dldistance
+
 export options.get, options.isSome, options.isNone
+export damerau_levenshtein_distance, damerau_levenshtein_distance_ascii, dldistance
 
 ## .. include:: ../README.rst
 
@@ -908,6 +911,17 @@ proc parse(specification: Specification, args: seq[string], command: string, sta
                     positionals.add(args[pos])
                     pos += 1
                 elif len(specification.commandList)>0:
+                    let command = specification.commandList[0]
+                    let variant = command.variants[0]
+                    let distance = dlDistance(args[pos], variant)
+                    var closest = (command: command, variant: variant, distance: distance)
+                    for command in specification.commandList:
+                        for variant in command.variants:
+                            let distance = dlDistance(args[pos], variant)
+                            if distance <  closest.distance:
+                                closest = (command: command, variant: variant, distance: distance)
+                    if closest.distance==1:
+                        raise newException(ParseError, fmt"Unexpected command: '{args[pos]}' - did you mean '{closest.variant}'?")
                     raise newException(ParseError, fmt"Unexpected command: {args[pos]}")
                 else:
                     raise newException(ParseError, fmt"Unexpected argument: {args[pos]}")
