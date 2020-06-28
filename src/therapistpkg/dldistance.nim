@@ -18,8 +18,9 @@ type
 proc damerau_levenshtein_distance[C](a: List[C], b: List[C]): int =
     ## Ported from https://gist.github.com/badocelot/5327337
 
-    # 'Infinite' row exists to simplify implementation by having a high cost row we can use to prevent
-    # transpositions where the character hasn't been seen
+    # 'Infinite' row exists to simplify implementation by having a high cost
+    # default row we can use to prevent transpositions where the character
+    # hasn't been seen
     let inf = len(a) + len(b)
 
     # Matrix: (len(a) + 2) x (len(b) + 2)

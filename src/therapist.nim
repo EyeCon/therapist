@@ -417,6 +417,13 @@ proc newCommandArg*[S](variants: seq[string], specification: S, help="", prolog=
 proc newCommandArg*[S](variants: string, specification: S, help="", prolog="", epilog="", group="", handle: proc(spec: S) = nil): CommandArg =
     newCommandArg(variants.split(COMMA), specification, help, prolog, epilog, group, handle)
 
+proc newCommandArg*[S, O](variants: seq[string], specification: S, help="", prolog="", epilog="", group="", handle: proc(spec: S, opts: O), options: O): CommandArg =
+    let handler = (commandSpec: S) => handle(specification, options)
+    newCommandArg(variants, specification, help, prolog, epilog, group, handler)
+
+proc newCommandArg*[S, O](variants: string, specification: S, help="", prolog="", epilog="", group="", handle: proc(spec: S, opts: O), options: O): CommandArg =
+    newCommandArg(variants.split(COMMA), specification, help, prolog, epilog, group, handle, options)
+
 proc newAlternatives(alternatives: tuple): Alternatives =
     result = new(Alternatives)
 
