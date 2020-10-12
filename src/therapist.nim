@@ -154,7 +154,7 @@ type
         commandList: seq[CommandArg]
         groups: OrderedTableRef[string, seq[Arg]]
 
-    ArgError* = object of CatchableError 
+    ArgError* = object of CatchableError
         ## Base Exception for module
         discard
 
@@ -170,7 +170,7 @@ type
 
     SpecificationError* = object of Defect
         ## Indicates an error in the specification. This error is thrown during an attempt
-        ## to create a parser with an invalid specification and as such indicates a 
+        ## to create a parser with an invalid specification and as such indicates a
         ## programming error
         discard
 
@@ -184,8 +184,8 @@ proc newSpecification(spec: tuple, prolog: string, epilog: string): Specificatio
 
 proc parse(specification: Specification, args: seq[string], command: string, start=0)
 
-method parse*(arg: Arg, value: string, variant: string) {.base.} = 
-    ## `parse` is called when a value is seen for an argument. If you 
+method parse*(arg: Arg, value: string, variant: string) {.base.} =
+    ## `parse` is called when a value is seen for an argument. If you
     ## write your own `Arg` you will need to provide a `parse` implementation. If the
     ## value cannot be parsed, a `ParseError` is raised with a user-friendly explanation
     raise newException(Defect, &"Parse not implemented for {$type(arg)}")
@@ -216,13 +216,13 @@ proc initArg*[A, T](arg: var A, variants: seq[string], help: string, defaultVal:
         raise newException(SpecificationError, "Arguments can be required or optional not both")
 
 proc newStringArg*(variants: seq[string], help: string, defaultVal = "", choices=newSeq[string](), helpvar="", group="", required=false, optional=false, multi=false, env=""): StringArg =
-    ## Creates a new Arg. 
-    ## 
+    ## Creates a new Arg.
+    ##
     ## .. code-block:: nim
     ##      :test:
     ##      import options
     ##      import unittest
-    ## 
+    ##
     ##      let spec = (
     ##          src: newStringArg(@["<source>"], multi=true, help="Source file(s)"),
     ##          dst: newStringArg(@["<destination>"], help="Destination")
@@ -232,8 +232,8 @@ proc newStringArg*(variants: seq[string], help: string, defaultVal = "", choices
     ##          check(success and message.isNone)
     ##          check(spec.src.values == @["this", "and_this"])
     ##          check(spec.dst.value == "to_here")
-    ## 
-    ## - `variants` determines how the Arg is presented to the user and whether the arg is a positional 
+    ##
+    ## - `variants` determines how the Arg is presented to the user and whether the arg is a positional
     ##   argument (Argument) or an optional argument (Option)
     ##     - Options take the form `-o` or `--option` (default to `optional` - override with `required=true`)
     ##     - Arguments take the form `<value>` (default to `required` - override wiith `optional=true`)
@@ -241,19 +241,19 @@ proc newStringArg*(variants: seq[string], help: string, defaultVal = "", choices
     ## - `help` is a short form help message to explain what the argument does
     ## - `defaultVal` is a default value
     ## - `choices` is a set of allowed values for the argument
-    ## - `helpvar` is a dummy variable name shown to the user in the help message for`ValueArg` (i.e. `--option <helpvar>`). 
+    ## - `helpvar` is a dummy variable name shown to the user in the help message for`ValueArg` (i.e. `--option <helpvar>`).
     ##   Defaults to the longest supplied variant
     ## - `required` implies that an optional argument must appear or parsing will fail
     ## - `optional` implies that a positional argument does not have to appear
     ## - `multi` implies that an Option may appear multiple times or an Argument consume multiple values
-    ## 
+    ##
     ## Notes:
     ##  - `multi` is greedy -- the first time it is seen it will consume as many arguments as it can, while
     ##    still allowing any remaining arguments to match
     ##  - `required` and `optional` are mutually exclusive, but `required=false` does not imply `optional=true`
-    ##    and vice versa. 
-    ## 
-    ## 
+    ##    and vice versa.
+    ##
+    ##
     result = new(StringArg)
     initArg(result, variants, help, defaultVal, choices, helpvar, group, required, optional, multi, env)
 
@@ -274,12 +274,12 @@ proc newStringPromptArg*(variants: seq[string], help: string, defaultVal = "", c
 
 proc newFloatArg*(variants: seq[string], help: string, defaultVal = 0.0, choices=newSeq[float](), helpvar="", group="", required=false, optional=false, multi=false, env=""): FloatArg =
     ## A `FloatArg` takes a float value
-    ## 
+    ##
     ## .. code-block:: nim
     ##      :test:
-    ## 
+    ##
     ##      import options
-    ## 
+    ##
     ##      let spec = (
     ##          number: newFloatArg(@["-f", "--float"], help="A fraction input")
     ##      )
@@ -292,12 +292,12 @@ proc newFloatArg*(variants: seq[string], help: string, defaultVal = 0.0, choices
 
 proc newIntArg*(variants: seq[string], help: string, defaultVal = 0, choices=newSeq[int](), helpvar="", group="", required=false, optional=false, multi=false, env=""): IntArg =
     ## An `IntArg` takes an integer value
-    ## 
+    ##
     ## .. code-block:: nim
     ##      :test:
-    ## 
+    ##
     ##      import options
-    ## 
+    ##
     ##      let spec = (
     ##          number: newIntArg(@["-n", "--number"], help="An integer input")
     ##      )
@@ -313,12 +313,12 @@ proc newIntArg*(variants: string, help: string, defaultVal = 0, choices=newSeq[i
 
 proc newCountArg*(variants: seq[string], help: string, defaultVal = 0, choices=newSeq[int](), group="", required=false, optional=false, multi=true, env=""): CountArg =
     ## A `CountArg` counts how many times it has been seen
-    ## 
+    ##
     ## .. code-block:: nim
     ##      :test:
-    ## 
+    ##
     ##      import options
-    ## 
+    ##
     ##      let spec = (
     ##          verbosity: newCountArg(@["-v", "--verbosity"], help="Verbosity")
     ##      )
@@ -333,7 +333,7 @@ proc newCountArg*(variants: string, help: string, defaultVal = 0, choices=newSeq
 
 proc newHelpArg*(variants= @["-h", "--help"], help="Show help message", group=""): HelpArg =
     ## If a help arg is seen, a help message will be shown
-    ## 
+    ##
     ## .. code-block:: nim
     ##      :test:
     ##      import options
@@ -348,14 +348,14 @@ proc newHelpArg*(variants= @["-h", "--help"], help="Show help message", group=""
     ##      doAssert success and message.isSome
     ##      let expected = """
     ##      Greet someone
-    ## 
+    ##
     ##      Usage:
     ##        hello <name>
     ##        hello -h|--help
-    ##      
+    ##
     ##      Arguments:
     ##        <name>           Someone to greet
-    ##      
+    ##
     ##      Options:
     ##        -t, --times=<n>  How many times to greet them
     ##        -h, --help       Show a help message""".strip()
@@ -377,11 +377,11 @@ proc newHelpCommandArg*(variants: string, help="Show help message", group=""): H
 
 proc newMessageArg*(variants: seq[string], message: string, help: string, group=""): MessageArg =
     ## If a `MessageArg` is seen, a message will be shown
-    ## 
+    ##
     ## .. code-block:: nim
     ##      :test:
     ##      import options
-    ## 
+    ##
     ##      let vspec = (
     ##          version: newMessageArg(@["-v", "--version"], "0.1.0", help="Show the version")
     ##      )
@@ -490,7 +490,7 @@ proc addArg(specification: Specification, variable: string, arg: Arg) =
             if variant =~ ARGUMENT_VARIANT_FORMAT:
                 if variant in specification.arguments:
                     raise newException(SpecificationError, fmt"Argument {variant} already defined")
-                specification.arguments[variant] = arg 
+                specification.arguments[variant] = arg
             else:
                 raise newException(SpecificationError, fmt"Argument {variant} must be in the form <argument>")
     else:
@@ -541,13 +541,13 @@ proc newSpecification(spec: tuple, prolog: string, epilog: string): Specificatio
 
 method render_choices(arg: Arg): string {.base.} = ""
 
-method render_choices(arg: StringArg): string = 
+method render_choices(arg: StringArg): string =
     arg.choices.join("|")
 
-method render_choices(arg: FloatArg): string = 
+method render_choices(arg: FloatArg): string =
     arg.choices.join("|")
 
-method render_choices(arg: IntArg): string = 
+method render_choices(arg: IntArg): string =
     arg.choices.join("|")
 
 method render_default(arg: Arg): string {.base.} = ""
@@ -573,7 +573,7 @@ proc render_usage(spec: Specification, command: string, lines: var seq[string]) 
         # If we have a list of commands, use them
         for subcommand in spec.commandList:
             let example = command & " " & subcommand.variants.join("|")
-            subcommand.specification.render_usage(example, lines)            
+            subcommand.specification.render_usage(example, lines)
     if len(spec.commandList)==0 or len(spec.argumentList)>0:
         # Otherwise, we create one example, based on the arguments we have
         var example = INDENT & command
@@ -615,7 +615,7 @@ proc render_help(spec: Specification, command: string): string =
             lines.add(example)
     lines.add("")
     let usage = lines.join("\n")
-    
+
     let max_width = 80
     var variant_width = 0
     # Find the widest command/argument/option example so we can ensure that the help texts all line up
@@ -626,7 +626,7 @@ proc render_help(spec: Specification, command: string): string =
     for option in spec.optionList:
         let helpVar = if len(option.helpVar)>0: "=" & option.helpVar else: ""
         variant_width = max(variant_width, len(option.variants.join(", ") & helpVar))
-    
+
     let help_indent = INDENT_WIDTH + variant_width + INDENT_WIDTH
     let help_width = max_width - help_indent
 
@@ -649,7 +649,7 @@ proc render_help(spec: Specification, command: string): string =
                     let help = rewrap(arg.help & defaultHelp, help_width).indent(help_indent).strip()
                     let helpVar = if len(arg.helpVar)>0: "=" & arg.helpVar else: ""
                     lines.add(INDENT & alignLeft(arg.variants.join(", ") & helpVar, variant_width) & INDENT & help)
-    
+
     let prolog = if len(spec.prolog)>0: rewrap(spec.prolog, max_width) & "\n\n" else: spec.prolog
     let epilog = if len(spec.epilog)>0: "\n\n" & rewrap(spec.epilog, max_width) else: spec.epilog
     let args = lines.join("\n")
@@ -660,7 +660,7 @@ proc render_help*(spec: tuple, prolog="", epilog="", command=extractFilename(get
     newSpecification(spec, prolog, epilog).render_help(command)
 
 
-template check_choices*[T](arg: Arg, value: T, variant: string) = 
+template check_choices*[T](arg: Arg, value: T, variant: string) =
     ## `check_choices` checks that `value` has been set to one of the acceptable `choices` values
     if len(arg.choices)>0 and not (value in arg.choices):
         let message = "Expected " & variant & " value to be " & arg.render_choices() & " , got: '" & $value & "'"
@@ -699,7 +699,7 @@ template defineArg*[T](TypeName: untyped, cons: untyped, name: string, parseT: p
     ## for type ``T``, you simply need to pass in a method that is able to parse a string into a ``T``
     ## and a sensible default value. ``default(T)`` is often a good bet, but is not defined for all
     ## types.
-    ## 
+    ##
     ## If ``parseT`` fails by raising a ``ValueError`` an error message will be written for you. To
     ## provide a custom error message, raise a ``ParseError``
     ##
@@ -707,24 +707,24 @@ template defineArg*[T](TypeName: untyped, cons: untyped, name: string, parseT: p
     ##
     ## .. code-block:: nim
     ##    :test:
-    ##    
-    ##    import times  
-    ##    
+    ##
+    ##    import times
+    ##
     ##    # Decide on your default value
     ##    let DEFAULT_DATE = initDateTime(1, mJan, 2000, 0, 0, 0, 0)
-    ##    
-    ##    # Define a parser  
+    ##
+    ##    # Define a parser
     ##    proc parseDate(value: string): DateTime = parse(value, "YYYY-MM-dd")
-    ## 
+    ##
     ##    defineArg[DateTime](DateArg, newDateArg, "date", parseDate, DEFAULT_DATE)
-    ##    
+    ##
     ##    # We can now use newDateArg to define an argument that takes a date
-    ## 
+    ##
     ##    let spec = (
-    ##      date: newDateArg(@["<date>"], help="Date to change to")       
+    ##      date: newDateArg(@["<date>"], help="Date to change to")
     ##    )
     ##    spec.parse(args="1999-12-31", "set-party-date")
-    ##    
+    ##
     ##    doAssert(spec.date.value == initDateTime(31, mDec, 1999, 0, 0, 0, 0))
     type
         TypeName* {.inject.} = ref object of ValueArg
@@ -732,7 +732,7 @@ template defineArg*[T](TypeName: untyped, cons: untyped, name: string, parseT: p
             value*: T
             values*: seq[T]
             choices: seq[T]
-    
+
     proc cons*(variants: seq[string], help: string, defaultVal: T = defaultT, choices = newSeq[T](), helpvar="", group="", required=false, optional=false, multi=false, env=""): TypeName =
         ## Template-defined constructor - see help for `newStringArg` for the meaning of parameters
         result = new(TypeName)
@@ -741,13 +741,13 @@ template defineArg*[T](TypeName: untyped, cons: untyped, name: string, parseT: p
     proc cons*(variants: string, help: string, defaultVal: T = defaultT, choices = newSeq[T](), helpvar="", group="", required=false, optional=false, multi=false, env=""): TypeName =
         cons(variants.split(COMMA), help, defaultVal, choices, helpvar, group, required, optional, multi, env)
 
-    method render_default(arg: TypeName): string = 
+    method render_default(arg: TypeName): string =
         if arg.defaultVal!=default(typedesc(T)): "[default: " & $arg.defaultVal & "]" else: ""
 
-    method render_choices(arg: TypeName): string = 
+    method render_choices(arg: TypeName): string =
         arg.choices.join("|")
-    
-    method parse(arg: TypeName, value: string, variant: string) = 
+
+    method parse(arg: TypeName, value: string, variant: string) =
         try:
             let parsed = parseT(value)
             arg.check_choices(parsed, variant)
@@ -787,7 +787,7 @@ proc parseURL(value: string): Uri =
 
 defineArg[Uri](URLArg, newURLArg, "URL", parseURL, parseUri(""))
 
-method register*(arg: Arg, variant: string) {.base, locks: "unknown" .} = 
+method register*(arg: Arg, variant: string) {.base, locks: "unknown" .} =
     ## `register` is called by the parser when an argument is seen. If you want to interupt parsing
     ## e.g. to print help, now is the time to do it
     arg.count += 1
@@ -818,7 +818,7 @@ method register*(arg: CountArg, variant: string) =
     if arg.count != 0 and not arg.multi:
         raise newEXception(ParseError, fmt"Duplicate occurence of '{variant}'")
     arg.count += (if variant in arg.down: -1 else: 1)
-        
+
 func seen*(arg: Arg): bool =
     ## `seen` returns `true` if the argument was seen in the input
     arg.count != 0
@@ -851,7 +851,7 @@ proc consume(arg: Arg, args: seq[string], variant: string, pos: int, command: st
         if not isnil(handler):
             handler()
 
-func consume(alternatives: Alternatives, arg: Arg) = 
+func consume(alternatives: Alternatives, arg: Arg) =
     alternatives.value = arg
     alternatives.seen = true
 
@@ -862,7 +862,7 @@ proc parse(specification: Specification, args: seq[string], command: string, sta
 
     try:
         # First, sift out options - what's left are the positionals
-        # Subcommands are contained in the options, as soon as we see a 
+        # Subcommands are contained in the options, as soon as we see a
         # subcommand we will switch to the subcommand parser
         var option_value: array[2, string]
         while pos < len(args):
@@ -873,10 +873,10 @@ proc parse(specification: Specification, args: seq[string], command: string, sta
                     positionals.add(args[pos])
                     pos += 1
             # Check if it's an option (or a command)
-            elif args[pos] in specification.options: 
+            elif args[pos] in specification.options:
                 let variant = args[pos]
                 let option = specification.options[variant]
-                pos += 1 
+                pos += 1
                 pos += option.consume(args, variant, pos, command)
                 if variant in specification.alternatives:
                     let alternatives = specification.alternatives[variant]
@@ -932,7 +932,7 @@ proc parse(specification: Specification, args: seq[string], command: string, sta
                     raise newException(ParseError, fmt"Unexpected command: {args[pos]}")
                 else:
                     raise newException(ParseError, fmt"Unexpected argument: {args[pos]}")
-        
+
         # Check required options have been supplied
         for option in specification.optionList:
             if option.required and not option.seen:
@@ -956,10 +956,10 @@ proc parse(specification: Specification, args: seq[string], command: string, sta
         raise newException(MessageError, render_help(specification, command))
 
 proc parse*(specification: tuple, prolog="", epilog="", args: seq[string] = commandLineParams(), command = extractFilename(getAppFilename())) =
-    ## Attempts to parse the input. 
+    ## Attempts to parse the input.
     ##  - If the specification is incorrect (i.e. programmer error), `SpecificationError` is thrown
     ##  - If the parse fails, `ParserError` is thrown
-    ##  - If the parse succeeds, but the user should be shown a message a `MessageError` is thrown 
+    ##  - If the parse succeeds, but the user should be shown a message a `MessageError` is thrown
     ##  - Otherwise, the parse has suceeded
     parse(newSpecification(specification, prolog, epilog), args, command)
 
@@ -967,7 +967,7 @@ proc parse*(specification: tuple, prolog="", epilog="", args: string, command = 
     parse(specification, prolog, epilog, parseCmdLine(args), command)
 
 proc parseOrQuit*(spec: tuple, prolog="", epilog="", args: seq[string] = commandLineParams(), command = extractFilename(getAppFilename())) =
-    ## Attempts to parse the input. If the parse fails or the user has asked for a message (e.g. 
+    ## Attempts to parse the input. If the parse fails or the user has asked for a message (e.g.
     ## help), show a message and quit. This is probably the ``proc`` you want for a simple commandline script
     try:
         parse(spec, prolog, epilog, args, command)
@@ -999,19 +999,36 @@ proc parseOrMessage*(spec: tuple, prolog="", epilog="", args: string, command: s
     result = parseOrMessage(spec, prolog, epilog, parseCmdLine(args), command)
 
 proc parseCopy*[S: tuple](specification: S, prolog="", epilog="", args: seq[string] = commandLineParams(), command = extractFilename(getAppFilename())): tuple[success: bool, message: Option[string], spec: Option[S]] =
-    ## Version of ``parse``, similar to ``parseOrMessage`` that returns a copy of the specification 
-    ## if the parse was successful. Crucially this lets you re-use the original specification, should 
+    ## Version of ``parse``, similar to ``parseOrMessage`` that returns a copy of the specification
+    ## if the parse was successful. Crucially this lets you re-use the original specification, should
     ## you wish. This is probably the ``proc`` you want for writing tests
     let parsed = specification.deepCopy
     let (success, message) = parsed.parseOrMessage(prolog, epilog, args, command)
     result = (success: success, message: message, spec: if success and message.isNone: some(parsed) else: none(S))
-    
+
 proc parseCopy*[S: tuple](specification: S, prolog="", epilog="", args: string, command = extractFilename(getAppFilename())): tuple[success: bool, message: Option[string], spec: Option[S]] =
     parseCopy(specification, prolog, epilog, parseCmdLine(args), command)
 
+proc parseOrHelp*(spec: tuple, prolog = "", epilog = "", args: seq[string] = commandLineParams(), command: string = extractFilename(getAppFilename())) =
+  ## Attempts to parse the input. If the parse fails, shows the user the error
+  ## message and help message, then quits. If the user has asked for a message
+  ## (e.g. help), shows the message and quits.
+  let helpSpec = spec.deepCopy
+  try:
+    parse(spec, prolog, epilog, args, command)
+  except MessageError as e:
+    quit(e.msg, QuitSuccess)
+  except ParseError as e:
+    let message = helpSpec.renderHelp(e.msg & "\n\n" & prolog, epilog, command)
+    quit(message, QuitFailure)
+
+proc parseOrHelp*(spec: tuple, prolog = "", epilog = "", args: string, command: string = extractFilename(getAppFileName())) =
+  ## Convenience version of ``parseOrHelp`` that takes a string for ``args``.
+  parseOrHelp(spec, prolog, epilog, parseCmdLine(args), command)
+
 when isMainModule:
     import unittest
-    
+
     suite "Greeter":
         setup:
             # Example from README.rst
@@ -1029,7 +1046,7 @@ when isMainModule:
         test "Hello World":
             parse(spec, args="World", command="hello")
             check(spec.name.value=="World")
-        
+
         test "Greeter Help":
             try:
                 parse(spec, prolog="Greeter", args="-h", command="hello")
@@ -1080,7 +1097,7 @@ Options:
             check(spec.verbosity.seen)
             check(spec.verbosity.count==3)
 
-        test "Short options can take values without spaces/separators": 
+        test "Short options can take values without spaces/separators":
             parse(spec, args = "README.rst to -n42")
             check(spec.number.seen)
             check(spec.number.value==42)
@@ -1107,7 +1124,7 @@ Options:
         test "Help raises message error":
             expect(MessageError):
                 parse(spec, args = @["-h"], command="cp")
-        
+
         test "Help raises message error in a multiletter short option":
             expect(MessageError):
                 parse(spec, args = @["-vh"], command="cp")
@@ -1145,18 +1162,18 @@ Options:
         test "Print args raise MessageError":
             expect(MessageError):
                 parse(spec, args = @["--version"], command="cp")
-        
+
         test "Message error content is correct":
             try:
                 parse(spec, args = @["--version"], command="cp")
             except MessageError:
                 let message = getCurrentExceptionMsg()
                 check(message=="0.1.0")
-        
+
         test "Int parsing error":
             expect(ParseError):
                 parse(spec, args = @["-n", "carrot"])
-        
+
         test "Float parsing error":
             expect(ParseError):
                 parse(spec, args = @["-f", "banana"])
@@ -1173,7 +1190,7 @@ Options:
             check(not ("--colour" =~ OPTION_VARIANT_NO_FORMAT))
             check(not ("--[no]c" =~ OPTION_VARIANT_NO_FORMAT))
             check(not ("--[some]colour" =~ OPTION_VARIANT_NO_FORMAT))
-        
+
         test "Long option alt peg format":
             var matches: array[2, string]
             check(match("--black/--white", OPTION_VARIANT_LONG_ALT_FORMAT, matches))
@@ -1184,7 +1201,7 @@ Options:
             check("--black / --white" =~ OPTION_VARIANT_LONG_ALT_FORMAT)
             check(not ("--black" =~ OPTION_VARIANT_LONG_ALT_FORMAT))
             check(not ("--black / --white / --grey" =~ OPTION_VARIANT_LONG_ALT_FORMAT))
-        
+
         test "Short option alt peg format":
             var matches: array[2, string]
             check(match("-b/-w", OPTION_VARIANT_SHORT_ALT_FORMAT, matches))
@@ -1195,7 +1212,7 @@ Options:
             check("-b / -w" =~ OPTION_VARIANT_SHORT_ALT_FORMAT)
             check(not ("-b" =~ OPTION_VARIANT_SHORT_ALT_FORMAT))
             check(not ("-b / -w / -g" =~ OPTION_VARIANT_SHORT_ALT_FORMAT))
-        
+
         test "Comma split":
             check("-o, --option".split(COMMA) == @["-o", "--option"])
 
