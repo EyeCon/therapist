@@ -5,6 +5,7 @@
 - Breaking: Switch to using `defaultVal` consistently everywhere (previously, some used `default`)
 - Add `parseCopy` to get back a copy of your specification rather than a modified one
 - Add `parseOrHelp` to show both error and help message on ParseError (@squattingmonk)
+- Add support for `--[no-]colour` as well as `--[no]colour` (idea from @squattingmonk)
 
 ## 0.1.0
  

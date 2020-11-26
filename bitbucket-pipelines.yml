@@ -4,6 +4,7 @@ image:
 pipelines:
     default:
         - step:
+            name: 'Stable'
             script:
                 - nimble refresh
                 - nimble build

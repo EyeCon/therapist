@@ -55,6 +55,7 @@ suite "grape":
             modified: newIsoDateArg(@["-m", "--modified"], defaultVal=DEFAULT_DATE, help="Only review files modified since this date", group="File Options"),
             color: newBoolArg(@["-c", "--color", "--colour"], defaultVal=true, help="Whether to colorise output", group="Display Options"),
             filename: newCountArg(@["-f/-F", "--with-filename/--no-filename"], help="Print filename match was found in", group="Display Options"),
+            format: newCountArg(@["--[no-]format"], help="Format output", group="Display Options"),
             version: newMessageArg(@["-v", "--version"], "0.1.0", help="Prints version", group="General Options"),
             help: newHelpArg(group="General Options"),
         )
@@ -94,6 +95,7 @@ Display Options:
   -c, --color, --colour=<colour>        Whether to colorise output [default:
                                         true]
   -f/-F, --with-filename/--no-filename  Print filename match was found in
+  --[no-]format                         Format output
 
 General Options:
   -v, --version                         Prints version
@@ -153,6 +155,18 @@ General Options:
         check(success and message.isNone)
         check(spec.follow.seen)
         check(spec.follow.count == -1)
+
+    test "Check --[no-]option format (count up)":
+        let (success, message) = spec.parseOrMessage(args = "--format corona src", command="grape")
+        check(success and message.isNone)
+        check(spec.format.seen)
+        check(spec.format.count == 1)
+
+    test "Check --[no-]option format (count down)":
+        let (success, message) = spec.parseOrMessage(args = "--no-format corona src", command="grape")
+        check(success and message.isNone)
+        check(spec.format.seen)
+        check(spec.format.count == -1)
 
     test "Check -y/-n option format (count up)":
         let (success, message) = spec.parseOrMessage(args = "-f corona src", command="grape")

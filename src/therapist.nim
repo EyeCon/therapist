@@ -38,7 +38,7 @@ let OPTION_VARIANT_FORMAT = peg"""
 let OPTION_VARIANT_NO_FORMAT = peg"""
         option <- ^ longOption $
         prefix <- '\-'
-        no <- '\[no\]'
+        no <- '\[' {'no' '-'?} '\]'
         longOption <- prefix prefix no {\w (\w / prefix)+}
     """
 # Captures --yes / --no
@@ -455,7 +455,7 @@ proc addArg(specification: Specification, variable: string, arg: Arg) =
             elif variant.match(OPTION_VARIANT_NO_FORMAT, matches):
                 if not (arg of CountArg):
                     raise newException(SpecificationError, fmt "Option {variant} format is only supported for CountArgs")
-                let (up, down) = (fmt"--{matches[0]}", fmt"--no{matches[0]}")
+                let (up, down) = (fmt"--{matches[1]}", fmt"--{matches[0]}{matches[1]}")
                 specification.options[up] = arg
                 specification.options[down] = arg
                 CountArg(arg).down.incl(down)
@@ -474,7 +474,7 @@ proc addArg(specification: Specification, variable: string, arg: Arg) =
                 specification.options[down] = arg
                 CountArg(arg).down.incl(down)
             else:
-                raise newException(SpecificationError, fmt"Option {variant} must be in the form -o, --option or --[no]option")
+                raise newException(SpecificationError, fmt"Option {variant} must be in the form -o, --option. --[no]option or --[no-]option")
         if arg of ValueArg:
             # We only want to display a meta var for args that take a value
             if len(arg.helpVar)==0:
@@ -1186,9 +1186,15 @@ Options:
         test "Option no format":
             var matches: array[2, string]
             check(match("--[no]colour", OPTION_VARIANT_NO_FORMAT, matches))
-            check(matches[0]=="colour")
+            check(matches[0]=="no")
+            check(matches[1]=="colour")
+            check(match("--[no-]colour", OPTION_VARIANT_NO_FORMAT, matches))
+            check(matches[0]=="no-")
+            check(matches[1]=="colour")
             check(not ("--colour" =~ OPTION_VARIANT_NO_FORMAT))
             check(not ("--[no]c" =~ OPTION_VARIANT_NO_FORMAT))
+            check(not ("--[]colour" =~ OPTION_VARIANT_NO_FORMAT))
+            check(not ("--colour" =~ OPTION_VARIANT_NO_FORMAT))
             check(not ("--[some]colour" =~ OPTION_VARIANT_NO_FORMAT))
 
         test "Long option alt peg format":
