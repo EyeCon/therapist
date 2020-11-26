@@ -5,7 +5,8 @@ pipelines:
     default:
         - step:
             name: 'Stable'
-            script:
+            script: &tests
+                - nim --version
                 - nimble refresh
                 - nimble build
                 - nimble develop
@@ -13,16 +14,8 @@ pipelines:
         - step:
             name: 'nim-1.2.8'
             image: nimlang/nim:1.0.0-alpine
-            script:
-                - nimble refresh
-                - nimble build
-                - nimble develop
-                - nimble tests
+            script: *tests
         - step:
             name: 'nim-1.0.10'
             image: nimlang/nim:1.0.0-alpine
-            script:
-                - nimble refresh
-                - nimble build
-                - nimble develop
-                - nimble tests
+            script: *tests
