@@ -765,21 +765,21 @@ template defineArg*[T](TypeName: untyped, cons: untyped, name: string, parseT: p
 defineArg[bool](BoolArg, newBoolArg, "boolean", parseBool, false)
 
 proc parseFile(value: string): string =
-    if not existsFile(value):
+    if not fileExists(value):
         raise newException(ParseError, fmt"File '{value}' not found")
     result = value
 
 defineArg[string](FileArg, newFileArg, "file", parseFile, "")
 
 proc parseDir(value: string): string =
-    if not existsDir(value):
+    if not dirExists(value):
         raise newException(ParseError, fmt"Directory '{value}' not found")
     result = value
 
 defineArg[string](DirArg, newDirArg, "directory", parseDir, "")
 
 proc parsePath(value: string): string =
-    if not (existsFile(value) or existsDir(value)):
+    if not (fileExists(value) or dirExists(value)):
         raise newException(ParseError, fmt"Path '{value}' not found")
     result = value
 
