@@ -372,6 +372,9 @@ proc newHelpCommandArg*(variants= @["help"], help="Show help message", group="")
     result.help = help
     result.group = group
 
+proc newHelpArg*(variants: string, help="Show help message", group=""): HelpArg =
+  newHelpArg(variants.split(COMMA), help, group)
+
 proc newHelpCommandArg*(variants: string, help="Show help message", group=""): HelpCommandArg =
     newHelpCommandArg(variants.split(COMMA), help, group)
 
@@ -393,6 +396,9 @@ proc newMessageArg*(variants: seq[string], message: string, help: string, group=
     result.message = message
     result.help = help
     result.group = group
+
+proc newMessageArg*(variants: string, message: string, help: string, group=""): MessageArg =
+  newMessageArg(variants.split(COMMA), message, help, group)
 
 proc newMessageCommandArg*(variants: seq[string], message: string, help="Show help message", group=""): MessageCommandArg =
     result = new(MessageCommandArg)
