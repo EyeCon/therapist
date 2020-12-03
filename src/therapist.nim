@@ -480,7 +480,7 @@ proc addArg(specification: Specification, variable: string, arg: Arg) =
                 specification.options[down] = arg
                 CountArg(arg).down.incl(down)
             else:
-                raise newException(SpecificationError, fmt"Option {variant} must be in the form -o, --option. --[no]option or --[no-]option")
+                raise newException(SpecificationError, fmt"Option {variant} must be in the form -o, --option, --[no]option or --[no-]option")
         if arg of ValueArg:
             # We only want to display a meta var for args that take a value
             if len(arg.helpVar)==0:
