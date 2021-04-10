@@ -192,7 +192,8 @@ method parse*(arg: Arg, value: string, variant: string) {.base.} =
     ## value cannot be parsed, a `ParseError` is raised with a user-friendly explanation
     raise newException(Defect, &"Parse not implemented for {$type(arg)}")
 
-proc initArg*[A, T](arg: var A, variants: seq[string], help: string, defaultVal: T, choices: seq[T], helpVar="", group="", required: bool, optional: bool, multi: bool, env: string, helpLevel: Natural) =
+proc initArg*[A, T](arg: var A, variants: seq[string], help: string, defaultVal: T, choices: seq[T], helpVar="", group="", 
+                        required: bool, optional: bool, multi: bool, env: string, helpLevel: Natural) =
     ## If you define your own `ValueArg` type, you can call this function to initialise it. It copies the parameter values to the `ValueArg` object
     ## and initialises the `value` field with either the value from the `env` environment key (if supplied and if the key is present in the environment)
     ## or `defaultVal`
@@ -218,7 +219,8 @@ proc initArg*[A, T](arg: var A, variants: seq[string], help: string, defaultVal:
     if required and optional:
         raise newException(SpecificationError, "Arguments can be required or optional not both")
 
-proc newStringArg*(variants: seq[string], help: string, defaultVal = "", choices=newSeq[string](), helpvar="", group="", required=false, optional=false, multi=false, env="", helpLevel: Natural = 0): StringArg =
+proc newStringArg*(variants: seq[string], help: string, defaultVal = "", choices=newSeq[string](), helpvar="", 
+                    group="", required=false, optional=false, multi=false, env="", helpLevel: Natural = 0): StringArg =
     ## Creates a new Arg.
     ##
     ## .. code-block:: nim
@@ -264,14 +266,16 @@ proc newStringArg*(variants: seq[string], help: string, defaultVal = "", choices
     result = new(StringArg)
     initArg(result, variants, help, defaultVal, choices, helpvar, group, required, optional, multi, env, helpLevel)
 
-proc newStringArg*(variants: string, help: string, defaultVal = "", choices=newSeq[string](), helpvar="", group="", required=false, optional=false, multi=false, env="", helpLevel: Natural = 0): StringArg =
+proc newStringArg*(variants: string, help: string, defaultVal = "", choices=newSeq[string](), helpvar="", 
+                    group="", required=false, optional=false, multi=false, env="", helpLevel: Natural = 0): StringArg =
     newStringArg(variants.split(COMMA), help, defaultVal, choices, helpvar, group, required, optional, multi, env, helpLevel)
 
 func initPromptArg(promptArg: PromptArg, prompt: string, secret: bool) =
     promptArg.prompt = prompt
     promptArg.secret = secret
 
-proc newStringPromptArg*(variants: seq[string], help: string, defaultVal = "", choices=newSeq[string](), helpvar="", group="", required=false, optional=false, multi=false, prompt: string, secret: bool, env="", helpLevel: Natural = 0): StringPromptArg =
+proc newStringPromptArg*(variants: seq[string], help: string, defaultVal = "", choices=newSeq[string](), helpvar="",
+                    group="", required=false, optional=false, multi=false, prompt: string, secret: bool, env="", helpLevel: Natural = 0): StringPromptArg =
     ## Experimental: Creates an argument whose value is read from a prompt rather than the commandline (e.g. a password)
     ##  - `prompt` - prompt to display to the user to request input
     ##  - `secret` - whether to display what the user tyeps (set to `false` for passwords)
@@ -279,7 +283,8 @@ proc newStringPromptArg*(variants: seq[string], help: string, defaultVal = "", c
     initArg(result, variants, help, defaultVal, choices, helpvar, group, required, optional, multi, env, helpLevel)
     initPromptArg(PromptArg(result), prompt, secret)
 
-proc newFloatArg*(variants: seq[string], help: string, defaultVal = 0.0, choices=newSeq[float](), helpvar="", group="", required=false, optional=false, multi=false, env="", helpLevel: Natural = 0): FloatArg =
+proc newFloatArg*(variants: seq[string], help: string, defaultVal = 0.0, choices=newSeq[float](), helpvar="", 
+                    group="", required=false, optional=false, multi=false, env="", helpLevel: Natural = 0): FloatArg =
     ## A `FloatArg` takes a float value
     ##
     ## .. code-block:: nim
@@ -297,7 +302,8 @@ proc newFloatArg*(variants: seq[string], help: string, defaultVal = 0.0, choices
     result = new(FloatArg)
     initArg(result, variants, help, defaultVal, choices, helpvar, group, required, optional, multi, env, helpLevel)
 
-proc newIntArg*(variants: seq[string], help: string, defaultVal = 0, choices=newSeq[int](), helpvar="", group="", required=false, optional=false, multi=false, env="", helpLevel: Natural = 0): IntArg =
+proc newIntArg*(variants: seq[string], help: string, defaultVal = 0, choices=newSeq[int](), helpvar="", group="", 
+                    required=false, optional=false, multi=false, env="", helpLevel: Natural = 0): IntArg =
     ## An `IntArg` takes an integer value
     ##
     ## .. code-block:: nim
@@ -315,10 +321,12 @@ proc newIntArg*(variants: seq[string], help: string, defaultVal = 0, choices=new
     result = new(IntArg)
     initArg(result, variants, help, defaultVal, choices, helpvar, group, required, optional, multi, env, helpLevel)
 
-proc newIntArg*(variants: string, help: string, defaultVal = 0, choices=newSeq[int](), helpvar="", group="", required=false, optional=false, multi=false, env="", helpLevel: Natural = 0): IntArg =
+proc newIntArg*(variants: string, help: string, defaultVal = 0, choices=newSeq[int](), helpvar="", group="", 
+                    required=false, optional=false, multi=false, env="", helpLevel: Natural = 0): IntArg =
     newIntArg(variants.split(COMMA), help, defaultVal, choices, helpvar, group, required, optional, multi, env, helpLevel)
 
-proc newCountArg*(variants: seq[string], help: string, defaultVal = 0, choices=newSeq[int](), group="", required=false, optional=false, multi=true, env="", helpLevel: Natural = 0): CountArg =
+proc newCountArg*(variants: seq[string], help: string, defaultVal = 0, choices=newSeq[int](), group="", 
+                    required=false, optional=false, multi=true, env="", helpLevel: Natural = 0): CountArg =
     ## A `CountArg` counts how many times it has been seen
     ##
     ## .. code-block:: nim
@@ -335,7 +343,8 @@ proc newCountArg*(variants: seq[string], help: string, defaultVal = 0, choices=n
     result = new(CountArg)
     initArg(result, variants, help, defaultVal, choices, helpvar="", group, required, optional, multi, env, helpLevel)
 
-proc newCountArg*(variants: string, help: string, defaultVal = 0, choices=newSeq[int](), group="", required=false, optional=false, multi=true, env="", helpLevel: Natural = 0): CountArg =
+proc newCountArg*(variants: string, help: string, defaultVal = 0, choices=newSeq[int](), group="", 
+                    required=false, optional=false, multi=true, env="", helpLevel: Natural = 0): CountArg =
     newCountArg(variants.split(COMMA), help, defaultVal, choices, group, required, optional, multi, env, helpLevel)
 
 proc newHelpArg*(variants= @["-h", "--help"], help="Show help message", group="", helpLevel, showLevel: Natural = 0): HelpArg =
@@ -432,7 +441,8 @@ proc newMessageCommandArg*(variants: seq[string], message: string, help="Show he
 proc newMessageCommandArg*(variants: seq, message: string, help="Show help message", group="", helpLevel: Natural = 0): MessageCommandArg =
     newMessageCommandArg(variants.split(COMMA), message, help, group, helpLevel)
 
-proc newCommandArg*[S](variants: seq[string], specification: S, help="", prolog="", epilog="", group="", helpLevel: Natural = 0, handle: proc(spec: S) = nil): CommandArg =
+proc newCommandArg*[S](variants: seq[string], specification: S, help="", prolog="", epilog="", group="", 
+                        helpLevel: Natural = 0, handle: proc(spec: S) = nil): CommandArg =
     result = new(CommandArg)
     result.variants = variants
     result.specification = newSpecification(specification, prolog, epilog)
@@ -442,14 +452,17 @@ proc newCommandArg*[S](variants: seq[string], specification: S, help="", prolog=
     if not isnil(handle):
         result.handler = () => handle(specification)
 
-proc newCommandArg*[S](variants: string, specification: S, help="", prolog="", epilog="", group="", helpLevel: Natural = 0, handle: proc(spec: S) = nil): CommandArg =
+proc newCommandArg*[S](variants: string, specification: S, help="", prolog="", epilog="", group="", 
+                        helpLevel: Natural = 0, handle: proc(spec: S) = nil): CommandArg =
     newCommandArg(variants.split(COMMA), specification, help, prolog, epilog, group, helpLevel, handle)
 
-proc newCommandArg*[S, O](variants: seq[string], specification: S, help="", prolog="", epilog="", group="", helpLevel: Natural = 0, handle: proc(spec: S, opts: O), options: O): CommandArg =
+proc newCommandArg*[S, O](variants: seq[string], specification: S, help="", prolog="", epilog="", group="", 
+                        helpLevel: Natural = 0, handle: proc(spec: S, opts: O), options: O): CommandArg =
     let handler = (commandSpec: S) => handle(specification, options)
     newCommandArg(variants, specification, help, prolog, epilog, group, helpLevel, handler)
 
-proc newCommandArg*[S, O](variants: string, specification: S, help="", prolog="", epilog="", group="", helpLevel: Natural = 0, handle: proc(spec: S, opts: O), options: O): CommandArg =
+proc newCommandArg*[S, O](variants: string, specification: S, help="", prolog="", epilog="", group="", 
+                        helpLevel: Natural = 0, handle: proc(spec: S, opts: O), options: O): CommandArg =
     newCommandArg(variants.split(COMMA), specification, help, prolog, epilog, group, helpLevel, handle, options)
 
 proc newAlternatives(alternatives: tuple): Alternatives =
@@ -781,12 +794,14 @@ template defineArg*[T](TypeName: untyped, cons: untyped, name: string, parseT: p
             values*: seq[T]
             choices: seq[T]
 
-    proc cons*(variants: seq[string], help: string, defaultVal: T = defaultT, choices = newSeq[T](), helpvar="", group="", required=false, optional=false, multi=false, env="", helpLevel: Natural = 0): TypeName =
+    proc cons*(variants: seq[string], help: string, defaultVal: T = defaultT, choices = newSeq[T](), helpvar="", 
+                    group="", required=false, optional=false, multi=false, env="", helpLevel: Natural = 0): TypeName =
         ## Template-defined constructor - see help for `newStringArg` for the meaning of parameters
         result = new(TypeName)
         result.initArg(variants, help, defaultVal, choices, helpvar, group, required, optional, multi, env, helpLevel)
 
-    proc cons*(variants: string, help: string, defaultVal: T = defaultT, choices = newSeq[T](), helpvar="", group="", required=false, optional=false, multi=false, env="", helpLevel: Natural = 0): TypeName =
+    proc cons*(variants: string, help: string, defaultVal: T = defaultT, choices = newSeq[T](), helpvar="", group="", 
+                    required=false, optional=false, multi=false, env="", helpLevel: Natural = 0): TypeName =
         cons(variants.split(COMMA), help, defaultVal, choices, helpvar, group, required, optional, multi, env, helpLevel)
 
     method render_default(arg: TypeName): string =

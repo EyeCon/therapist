@@ -16,8 +16,8 @@ The constructor for each ``Arg`` type takes the form:
 .. code-block:: nim
 
   # doctest: skip
-  proc newStringArg*(variants: seq[string], help: string, defaultVal="", choices=newSeq[string](), 
-                      helpvar="", required=false, optional=false, multi=false, env="")
+  proc newStringArg*(variants: seq[string], help: string, defaultVal="", choices=newSeq[string](),
+                      helpvar="", required=false, optional=false, multi=false, env="", helpLevel=0)
 
 - Every argument must be declared with one or more ``variants``. There are three types of argument:
    * Positional Arguments are declared in ``variants`` as ``<value>`` whose value is determined by 
@@ -58,6 +58,8 @@ The constructor for each ``Arg`` type takes the form:
 - Within the help message, arguments are usually grouped into ``Commands``, ``Arguments`` and 
   ``Options``. If you want to group them differently, use the ``group`` parameter to define new 
   groups. Groups and arguments will be shown the order that they are appear in the tuple definition.
+- If ``helpLevel`` is set to a value ``x`` greater than 0 the argument will only be shown in a help 
+  mesasge if the ``HelpArg`` is defined ``showLevel`` set to a value greater than or equal to ``x``
 - If you want to define a new ``ValueArg`` type ``defineArg`` is a template that will fill in the
   boilerplate for you
 
@@ -229,7 +231,6 @@ Possible features therapist does not have
 
 In *rough* order of likelihood of being added:
 
-- 'Hidden' arguments (so you can have ``--help`` and ``--extended-help``)
 - Options for help format from columns (current) to paragraphs
 - Ints and floats being limited to a range rather than a set of discrete values
 - Support for ``+w`` and ``-w`` to equate to ``w=true`` and ``w=false``

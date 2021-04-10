@@ -115,3 +115,10 @@ Options:
     test "Required options":
         expect(ParseError):
             parse(spec, args="auth", command="pal")
+
+    test "Misspelt commands lead to recommendations":
+        let parsed = parseOrMessage(spec, prolog, epilog, "pusj", command="pal")
+        check(not spec.push.seen)
+        check(not parsed.success)
+        check(parsed.message.isSome)
+        check(parsed.message.get=="Unexpected command: 'pusj' - did you mean 'push'?")
