@@ -80,8 +80,8 @@ Creating your own argument type
 -------------------------------
 
 Creating your own ``ValueArg`` is as simple as defining a ``parse`` method that turns a ``string`` 
-into an appropriate value (or raises a ``ValueError`` for invalid input). Suppose we want to create
-a ``DateArg`` type that only accepts ISO-formatted dates:
+into a value of an appropriate type (or raises a ``ValueError`` for invalid input). Suppose we want 
+to create a ``DateArg`` type that only accepts ISO-formatted dates:
 
 .. code-block:: nim
 
@@ -187,14 +187,12 @@ run ``navel_fate mine --help``.
          state: state,
          help: newHelpArg()
    )
-
    let ship = (
          create: newCommandArg(@["new"], create, help="Create a new ship"),
          move: newCommandArg(@["move"], move, help="Move a ship"),
          shoot: newCommandArg(@["shoot"], shoot, help="Shoot at another ship"),
          help: newHelpArg()
    )
-
    let spec = (
          ship: newCommandArg(@["ship"], ship, help="Ship commands"),
          mine: newCommandArg(@["mine"], mine, help="Mine commands"),
