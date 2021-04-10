@@ -14,9 +14,9 @@ type
 
 let DEFAULT_DATE = initDateTime(1, mJan, 2000, 0, 0, 0, 0)
 
-proc newIsoDateArg*(variants: seq[string], help: string, defaultVal = DEFAULT_DATE, choices = newSeq[DateTime](), helpvar="", group="", required=false, optional=false, multi=false, env=""): IsoDateArg =
+proc newIsoDateArg*(variants: seq[string], help: string, defaultVal = DEFAULT_DATE, choices = newSeq[DateTime](), helpvar="", group="", required=false, optional=false, multi=false, env="", hide: Natural = 0): IsoDateArg =
     result = new(IsoDateArg)
-    initArg(result, variants, help, defaultVal, choices, helpvar, group, required, optional, multi, env)
+    initArg(result, variants, help, defaultVal, choices, helpvar, group, required, optional, multi, env, hide)
 
 method render_choices(arg: IsoDateArg): string = 
     arg.choices.join("|")
