@@ -1305,21 +1305,21 @@ Options:
             except MessageError:
                 let message = getCurrentExceptionMsg()
                 let expected = """
-                    Usage:
-                      cp <source>... <destination>
-                      cp -h|--help
-                      cp --extended-help
+Usage:
+  cp <source>... <destination>
+  cp -h|--help
+  cp --extended-help
 
-                    Arguments:
-                      <source>         Source
-                      <destination>    Destination
+Arguments:
+  <source>         Source
+  <destination>    Destination
 
-                    Options:
-                      -r, --recursive  Recurse into subdirectories
-                      -v, --verbose    Verbosity (can be repeated)
-                      -h, --help       Show help message
-                      --extended-help  Show full help message
-                      """.dedent.strip()
+Options:
+  -r, --recursive  Recurse into subdirectories
+  -v, --verbose    Verbosity (can be repeated)
+  -h, --help       Show help message
+  --extended-help  Show full help message
+""".strip()
                 check(message == expected)
 
         test "Hidden args shown when requested":
@@ -1328,25 +1328,25 @@ Options:
           except MessageError:
               let message = getCurrentExceptionMsg()
               let expected = """
-                  Usage:
-                    cp <source>... <destination>
-                    cp --version
-                    cp -h|--help
-                    cp --extended-help
+Usage:
+  cp <source>... <destination>
+  cp --version
+  cp -h|--help
+  cp --extended-help
 
-                  Arguments:
-                    <source>           Source
-                    <destination>      Destination
+Arguments:
+  <source>           Source
+  <destination>      Destination
 
-                  Options:
-                    --version          Prints version info
-                    -r, --recursive    Recurse into subdirectories
-                    -n, --number=<n>   Max number of files to copy
-                    -f, --float=<pct>  Max percentage of hard drive
-                    -v, --verbose      Verbosity (can be repeated)
-                    -h, --help         Show help message
-                    --extended-help    Show full help message
-                    """.dedent.strip()
+Options:
+  --version          Prints version info
+  -r, --recursive    Recurse into subdirectories
+  -n, --number=<n>   Max number of files to copy
+  -f, --float=<pct>  Max percentage of hard drive
+  -v, --verbose      Verbosity (can be repeated)
+  -h, --help         Show help message
+  --extended-help    Show full help message
+""".strip()
               check(message == expected)
 
 # Outstanding
