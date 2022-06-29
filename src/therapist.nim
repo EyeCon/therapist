@@ -520,7 +520,7 @@ proc addArg(specification: Specification, variable: string, arg: Arg) =
             # We only want to display a meta var for args that take a value
             if len(arg.helpVar)==0:
                 arg.helpVar = fmt"<{helpVar}>"
-            else:
+            elif not (arg.helpVar.startsWith('<') and arg.helpVar.endsWith('>')):
                 arg.helpVar = fmt"<{arg.helpVar}>"
 
     elif first.startsWith('<'):
