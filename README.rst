@@ -256,6 +256,13 @@ Contributing
 
 The code lives on `bitbucket`_. Pull requests (with tests) and bug reports welcome!
 
+License
+-------
+
+This library is made available under the LGPL. Use it to make any software you like, open source or not, 
+but if you make improvements to therapist itself, please contribute them back.
+
+
 Alternatives and prior art
 --------------------------
 
