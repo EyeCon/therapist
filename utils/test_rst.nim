@@ -1,3 +1,5 @@
+# See https://github.com/nim-lang/Nim/issues/14352
+# In short, this is a hack that extracts code blocks from rst files and runs them as tests
 import os
 import packages/docutils/rstast
 import packages/docutils/rst
@@ -33,10 +35,15 @@ proc gatherExamples(node: PRstNode, examples: var seq[string]) =
 
 proc testFile(filename: string, verbose: bool): int =
     let text = readFile(filename)
-    var hastoc: bool
-    let node = rstParse(text, filename, 0, 0, hastoc, {})
     var examples = newSeq[string]()
-    node.gatherExamples(examples)
+    # Implementation of the rst parser changed
+    when (NimMajor, NimMinor, NimPatch) < (1, 6, 0):
+        var hastoc: bool
+        let node = rstParse(text, filename, 0, 0, hastoc, {})
+        node.gatherExamples(examples)
+    else:
+        let node = rstParse(text, filename, 0, 0, {})
+        node.node.gatherExamples(examples)
     withTempDir("examples"):
         var master = newSeq[string]()
         for index, example in examples:

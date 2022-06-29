@@ -1,5 +1,6 @@
 from os import splitFile, `/`
 import strformat
+import std/algorithm
 
 let buildDir  = "build"
 
@@ -22,7 +23,7 @@ task tests, "Runs the tests":
     selfExec "doc --hints:off --outdir:build/docs src/therapist"
     let testDir = buildDir / "tests"
     mkDir testDir
-    for fname in listFiles("tests"):
+    for fname in sorted(listFiles("tests")):
         let fileparts = splitFile(fname)
         if fileparts.name.startsWith("test") and fileparts.ext==".nim":
             selfExec fmt"c --hints:off --outdir:{testDir} -r {fname}"
