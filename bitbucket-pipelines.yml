@@ -12,8 +12,12 @@ pipelines:
                 - nimble develop
                 - nimble tests
         - step:
-            name: 'nim-1.2.8'
-            image: nimlang/nim:1.2.8-alpine
+            name: 'nim-1.4.8'
+            image: nimlang/nim:1.4.8-alpine
+            script: *tests
+        - step:
+            name: 'nim-1.2.18'
+            image: nimlang/nim:1.2.18-alpine
             script: *tests
         - step:
             name: 'nim-1.0.10'
