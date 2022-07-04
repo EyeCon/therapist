@@ -197,6 +197,8 @@ proc initArg*[A, T](arg: var A, variants: seq[string], help: string, defaultVal:
     ## If you define your own `ValueArg` type, you can call this function to initialise it. It copies the parameter values to the `ValueArg` object
     ## and initialises the `value` field with either the value from the `env` environment key (if supplied and if the key is present in the environment)
     ## or `defaultVal`
+    ## 
+    ## Since: 0.1.0
     arg.variants = variants
     arg.env = env
     arg.choices = choices
@@ -262,12 +264,15 @@ proc newStringArg*(variants: seq[string], help: string, defaultVal = "", choices
     ##  - `required` and `optional` are mutually exclusive, but `required=false` does not imply `optional=true`
     ##    and vice versa.
     ##
-    ##
+    ## Since: 0.1.0
     result = new(StringArg)
     initArg(result, variants, help, defaultVal, choices, helpvar, group, required, optional, multi, env, helpLevel)
 
 proc newStringArg*(variants: string, help: string, defaultVal = "", choices=newSeq[string](), helpvar="", 
                     group="", required=false, optional=false, multi=false, env="", helpLevel: Natural = 0): StringArg =
+    ## Convenience method where `variants` are provided as a comma-separated string
+    ## 
+    ## Since: 0.2.0
     newStringArg(variants.split(COMMA), help, defaultVal, choices, helpvar, group, required, optional, multi, env, helpLevel)
 
 func initPromptArg(promptArg: PromptArg, prompt: string, secret: bool) =
@@ -279,6 +284,8 @@ proc newStringPromptArg*(variants: seq[string], help: string, defaultVal = "", c
     ## Experimental: Creates an argument whose value is read from a prompt rather than the commandline (e.g. a password)
     ##  - `prompt` - prompt to display to the user to request input
     ##  - `secret` - whether to display what the user tyeps (set to `false` for passwords)
+    ## 
+    ## Since: 0.1.0
     result = new(StringPromptArg)
     initArg(result, variants, help, defaultVal, choices, helpvar, group, required, optional, multi, env, helpLevel)
     initPromptArg(PromptArg(result), prompt, secret)
@@ -299,8 +306,17 @@ proc newFloatArg*(variants: seq[string], help: string, defaultVal = 0.0, choices
     ##      doAssert success and message.isNone
     ##      doAssert spec.number.seen
     ##      doAssert spec.number.value == 0.25
+    ## Since: 0.1.0
     result = new(FloatArg)
     initArg(result, variants, help, defaultVal, choices, helpvar, group, required, optional, multi, env, helpLevel)
+
+proc newFloatArg*(variants: string, help: string, defaultVal = 0.0, choices=newSeq[float](), helpvar="", group="", 
+                    required=false, optional=false, multi=false, env="", helpLevel: Natural = 0): FloatArg =
+    ## Convenience method where `variants` are provided as a comma-separated string
+    ## 
+    ## Since: 0.2.0
+    newFloatArg(variants.split(COMMA), help, defaultVal, choices, helpvar, group, required, optional, multi, env, helpLevel)
+
 
 proc newIntArg*(variants: seq[string], help: string, defaultVal = 0, choices=newSeq[int](), helpvar="", group="", 
                     required=false, optional=false, multi=false, env="", helpLevel: Natural = 0): IntArg =
@@ -318,11 +334,16 @@ proc newIntArg*(variants: seq[string], help: string, defaultVal = 0, choices=new
     ##      doAssert success and message.isNone
     ##      doAssert spec.number.seen
     ##      doAssert spec.number.value == 10
+    ## 
+    ## Since: 0.1.0
     result = new(IntArg)
     initArg(result, variants, help, defaultVal, choices, helpvar, group, required, optional, multi, env, helpLevel)
 
 proc newIntArg*(variants: string, help: string, defaultVal = 0, choices=newSeq[int](), helpvar="", group="", 
                     required=false, optional=false, multi=false, env="", helpLevel: Natural = 0): IntArg =
+    ## Convenience method where `variants` are provided as a comma-separated string
+    ## 
+    ## Since: 0.2.0
     newIntArg(variants.split(COMMA), help, defaultVal, choices, helpvar, group, required, optional, multi, env, helpLevel)
 
 proc newCountArg*(variants: seq[string], help: string, defaultVal = 0, choices=newSeq[int](), group="", 
@@ -340,11 +361,16 @@ proc newCountArg*(variants: seq[string], help: string, defaultVal = 0, choices=n
     ##      let (success, message) = parseOrMessage(spec, args="-v -v -v", command="hello")
     ##      doAssert success and message.isNone
     ##      doAssert spec.verbosity.count == 3
+    ## 
+    ## Since: 0.1.0
     result = new(CountArg)
     initArg(result, variants, help, defaultVal, choices, helpvar="", group, required, optional, multi, env, helpLevel)
 
 proc newCountArg*(variants: string, help: string, defaultVal = 0, choices=newSeq[int](), group="", 
                     required=false, optional=false, multi=true, env="", helpLevel: Natural = 0): CountArg =
+    ## Convenience method where `variants` are provided as a comma-separated string
+    ## 
+    ## Since: 0.2.0
     newCountArg(variants.split(COMMA), help, defaultVal, choices, group, required, optional, multi, env, helpLevel)
 
 proc newHelpArg*(variants= @["-h", "--help"], help="Show help message", group="", helpLevel, showLevel: Natural = 0): HelpArg =
@@ -384,12 +410,21 @@ proc newHelpArg*(variants= @["-h", "--help"], help="Show help message", group=""
     ##        -t, --times=<n>  How many times to greet them
     ##        -h, --help       Show a help message""".strip()
     ##      doAssert message.get == expected
+    ## 
+    ## Since: 0.1.0
     result = new(HelpArg)
     result.variants = variants
     result.help = help
     result.group = group
     result.helpLevel = helpLevel
     result.showLevel = showLevel
+
+proc newHelpArg*(variants: string, help="Show help message", group="", helpLevel, showLevel: Natural = 0): HelpArg =
+    ## Convenience method where `variants` are provided as a comma-separated string
+    ## 
+    ## Since: 0.2.0
+    newHelpArg(variants.split(COMMA), help, group, helpLevel, showLevel)
+
 
 proc newHelpCommandArg*(variants= @["help"], help="Show help message", group="", helpLevel, showLevel: Natural = 0): HelpCommandArg =
     result = new(HelpCommandArg)
@@ -399,9 +434,6 @@ proc newHelpCommandArg*(variants= @["help"], help="Show help message", group="",
     result.group = group
     result.helpLevel = helpLevel
     result.showLevel = showLevel
-
-proc newHelpArg*(variants: string, help="Show help message", group="", helpLevel, showLevel: Natural = 0): HelpArg =
-  newHelpArg(variants.split(COMMA), help, group, helpLevel, showLevel)
 
 proc newHelpCommandArg*(variants: string, help="Show help message", group="", helpLevel, showLevel: Natural = 0): HelpCommandArg =
     newHelpCommandArg(variants.split(COMMA), help, group, helpLevel, showLevel)
@@ -419,6 +451,8 @@ proc newMessageArg*(variants: seq[string], message: string, help: string, group=
     ##      let (success, message) = parseOrMessage(vspec, args="-v", command="hello")
     ##      doAssert success and message.isSome
     ##      doAssert message.get == "0.1.0"
+    ## 
+    ## Since: 0.1.0
     result = new(MessageArg)
     result.variants = variants
     result.message = message
@@ -427,7 +461,10 @@ proc newMessageArg*(variants: seq[string], message: string, help: string, group=
     result.helpLevel = helpLevel
 
 proc newMessageArg*(variants: string, message: string, help: string, group="", helpLevel: Natural = 0): MessageArg =
-  newMessageArg(variants.split(COMMA), message, help, group, helpLevel)
+    ## Convenience method where `variants` are provided as a comma-separated string
+    ## 
+    ## Since: 0.2.0
+    newMessageArg(variants.split(COMMA), message, help, group, helpLevel)
 
 proc newMessageCommandArg*(variants: seq[string], message: string, help="Show help message", group="", helpLevel: Natural = 0): MessageCommandArg =
     result = new(MessageCommandArg)
@@ -723,6 +760,8 @@ proc render_help*(spec: tuple, prolog="", epilog="", command=extractFilename(get
 
 template check_choices*[T](arg: Arg, value: T, variant: string) =
     ## `check_choices` checks that `value` has been set to one of the acceptable `choices` values
+    ## 
+    ## Since: 0.1.0
     if len(arg.choices)>0 and not (value in arg.choices):
         let message = "Expected " & variant & " value to be " & arg.render_choices() & " , got: '" & $value & "'"
         raise newException(ParseError, message)
@@ -787,6 +826,8 @@ template defineArg*[T](TypeName: untyped, cons: untyped, name: string, parseT: p
     ##    spec.parse(args="1999-12-31", "set-party-date")
     ##
     ##    doAssert(spec.date.value == initDateTime(31, mDec, 1999, 0, 0, 0, 0))
+    ## 
+    ## Since: 0.1.0
     type
         TypeName* {.inject.} = ref object of ValueArg
             defaultVal: T
@@ -795,13 +836,13 @@ template defineArg*[T](TypeName: untyped, cons: untyped, name: string, parseT: p
             choices: seq[T]
 
     proc cons*(variants: seq[string], help: string, defaultVal: T = defaultT, choices = newSeq[T](), helpvar="", 
-                    group="", required=false, optional=false, multi=false, env="", helpLevel: Natural = 0): TypeName =
+                    group="", required=false, optional=false, multi=false, env="", helpLevel: Natural = 0): TypeName {.inject.} =
         ## Template-defined constructor - see help for `newStringArg` for the meaning of parameters
         result = new(TypeName)
         result.initArg(variants, help, defaultVal, choices, helpvar, group, required, optional, multi, env, helpLevel)
 
     proc cons*(variants: string, help: string, defaultVal: T = defaultT, choices = newSeq[T](), helpvar="", group="", 
-                    required=false, optional=false, multi=false, env="", helpLevel: Natural = 0): TypeName =
+                    required=false, optional=false, multi=false, env="", helpLevel: Natural = 0): TypeName {.inject.} =
         cons(variants.split(COMMA), help, defaultVal, choices, helpvar, group, required, optional, multi, env, helpLevel)
 
     method render_default(arg: TypeName): string =
@@ -884,6 +925,8 @@ method register*(arg: CountArg, variant: string) =
 
 func seen*(arg: Arg): bool =
     ## `seen` returns `true` if the argument was seen in the input
+    ## 
+    ## Since: 0.1.0
     arg.count != 0
 
 proc consume(arg: Arg, args: seq[string], variant: string, pos: int, command: string): int =
@@ -1024,14 +1067,21 @@ proc parse*(specification: tuple, prolog="", epilog="", args: seq[string] = comm
     ##  - If the parse fails, `ParserError` is thrown
     ##  - If the parse succeeds, but the user should be shown a message a `MessageError` is thrown
     ##  - Otherwise, the parse has suceeded
+    ## 
+    ## Since: 0.1.0
     parse(newSpecification(specification, prolog, epilog), args, command)
 
 proc parse*(specification: tuple, prolog="", epilog="", args: string, command = extractFilename(getAppFilename())) =
+    ## Convenience method where `args` are provided as a space-separated string
+    ## 
+    ## Since: 0.2.0
     parse(specification, prolog, epilog, parseCmdLine(args), command)
 
 proc parseOrQuit*(spec: tuple, prolog="", epilog="", args: seq[string] = commandLineParams(), command = extractFilename(getAppFilename())) =
     ## Attempts to parse the input. If the parse fails or the user has asked for a message (e.g.
     ## help), show a message and quit. This is probably the ``proc`` you want for a simple commandline script
+    ## 
+    ## Since: 0.1.0
     try:
         parse(spec, prolog, epilog, args, command)
     except MessageError:
@@ -1043,12 +1093,16 @@ proc parseOrQuit*(spec: tuple, prolog="", epilog="", args: seq[string] = command
 
 proc parseOrQuit*(spec: tuple, prolog="", epilog="", args: string, command: string) =
     ## Version of `parseOrQuit` taking `args` as a `string` for convenience
+    ## 
+    ## Since: 0.1.0
     parseOrQuit(spec, prolog, epilog, parseCmdLine(args), command)
 
 proc parseOrMessage*(spec: tuple, prolog="", epilog="", args: seq[string] = commandLineParams(), command = extractFilename(getAppFilename())): tuple[success: bool, message: Option[string]] =
     ## Version of ``parse`` that returns ``success`` if the parse was sucessful.
     ## If the parse fails, or the result of the parse is an informationl message
     ## for the user, `Option[str]` will containing an appropriate message
+    ## 
+    ## Since: 0.1.0
     try:
         parse(spec, prolog, epilog, args, command)
         result = (true, none(string))
@@ -1058,24 +1112,33 @@ proc parseOrMessage*(spec: tuple, prolog="", epilog="", args: seq[string] = comm
         result = (false, some(getCurrentExceptionMsg()))
 
 proc parseOrMessage*(spec: tuple, prolog="", epilog="", args: string, command: string): tuple[success: bool, message: Option[string]] =
-    ## Version of `parseOrMessage` that accepts `args` as a string for debugging sugar
+    ## Version of `parseOrMessage` that accepts `args` as a string for convenience
+    ## 
+    ## Since: 0.2.0
     result = parseOrMessage(spec, prolog, epilog, parseCmdLine(args), command)
 
 proc parseCopy*[S: tuple](specification: S, prolog="", epilog="", args: seq[string] = commandLineParams(), command = extractFilename(getAppFilename())): tuple[success: bool, message: Option[string], spec: Option[S]] =
     ## Version of ``parse``, similar to ``parseOrMessage`` that returns a copy of the specification
     ## if the parse was successful. Crucially this lets you re-use the original specification, should
     ## you wish. This is probably the ``proc`` you want for writing tests
+    ## 
+    ## Since: 0.2.0
     let parsed = specification.deepCopy
     let (success, message) = parsed.parseOrMessage(prolog, epilog, args, command)
     result = (success: success, message: message, spec: if success and message.isNone: some(parsed) else: none(S))
 
 proc parseCopy*[S: tuple](specification: S, prolog="", epilog="", args: string, command = extractFilename(getAppFilename())): tuple[success: bool, message: Option[string], spec: Option[S]] =
+    ## Version of `parseCopy` that accepts `args` as a string for convenience
+    ## 
+    ## Since: 0.2.0
     parseCopy(specification, prolog, epilog, parseCmdLine(args), command)
 
 proc parseOrHelp*(spec: tuple, prolog = "", epilog = "", args: seq[string] = commandLineParams(), command: string = extractFilename(getAppFilename())) =
   ## Attempts to parse the input. If the parse fails, shows the user the error
   ## message and help message, then quits. If the user has asked for a message
   ## (e.g. help), shows the message and quits.
+  ## 
+  ## Since: 0.2.0
   let helpSpec = spec.deepCopy
   try:
     parse(spec, prolog, epilog, args, command)
@@ -1087,6 +1150,8 @@ proc parseOrHelp*(spec: tuple, prolog = "", epilog = "", args: seq[string] = com
 
 proc parseOrHelp*(spec: tuple, prolog = "", epilog = "", args: string, command: string = extractFilename(getAppFileName())) =
   ## Convenience version of ``parseOrHelp`` that takes a string for ``args``.
+  ## 
+  ## Since: 0.2.0
   parseOrHelp(spec, prolog, epilog, parseCmdLine(args), command)
 
 when isMainModule:

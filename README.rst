@@ -277,6 +277,8 @@ prefer is likely a matter of taste. If you want to explore alternatives, you mig
   want (think argh_ from python for nim). More complex use cases look a bit less elegant to my eyes, 
   but you're still going to be winning the code golf competition
 
+.. include:: CHANGELOG.rst
+
 .. _bitbucket: https://bitbucket.org/maxgrenderjones/therapist
 .. _parseopt: https://nim-lang.org/docs/parseopt.html
 .. _nim-argparse: https://github.com/iffy/nim-argparse
