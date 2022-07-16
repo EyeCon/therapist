@@ -12,7 +12,10 @@ type
         values*: seq[DateTime]
         choices: seq[DateTime]
 
-let DEFAULT_DATE = initDateTime(1, mJan, 2000, 0, 0, 0, 0)
+when (NimMajor, NimMinor) < (1, 6):
+    let DEFAULT_DATE = initDateTime(1, mJan, 2000, 0, 0, 0, 0)
+else:
+    let DEFAULT_DATE = dateTime(2000, mJan, 1)
 
 proc newIsoDateArg*(variants: seq[string], help: string, defaultVal = DEFAULT_DATE, choices = newSeq[DateTime](), helpvar="", group="", required=false, optional=false, multi=false, env="", hide: Natural = 0): IsoDateArg =
     result = new(IsoDateArg)
@@ -124,7 +127,10 @@ General Options:
         if not success:
             echo message
         check(success)
-        check(spec.modified.value == initDateTime(1, mMay, 2020, 0, 0, 0, 0))
+        when (NimMajor, NimMinor) < (1, 6):
+            check(spec.modified.value == initDateTime(1, mMay, 2020, 0, 0, 0, 0))
+        else:
+            check(spec.modified.value == dateTime(2020, mMay, 1))
 
     test "Template-defined boolean type":
         let (success, message) = spec.parseOrMessage(args = "-c false corona README.rst", command="grape")
