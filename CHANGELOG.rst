@@ -9,6 +9,7 @@ Changes
 - Add `parseOrHelp` to show both error and help message on ParseError (@squattingmonk)
 - Add support for `--[no-]colour` as well as `--[no]colour` (idea from @squattingmonk)
 - Added convenience versions of `newXXXArg` where `variants` can be provided as a comma-separated string
+- Add `newHelpCommandArg` and `newMessageCommandArg`
 
 0.1.0 2020-05-23
 ^^^^^^^^^^^^^^^^

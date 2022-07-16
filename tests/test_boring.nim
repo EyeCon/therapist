@@ -223,3 +223,38 @@ suite "Specification errors":
                 destination: newStringArg(@["<file>"], help="Destination"),
             )
             parse(spec, args = @["from", "to"])
+
+    test "Commands must be specified as '<command>' rather than 'command'":
+        expect(SpecificationError):
+            let subcommand = (
+                stringval: newStringArg("<name>", help="Person to greet")
+            )
+            let boring_command_mistake = (
+                verb: newCommandArg("<verb>", subcommand, help="what to do"),
+                help: newHelpCommandArg("help", help="Show help")
+            )
+            parse(boring_command_mistake, args = @["greet", "Peter"], command="greeter")
+
+suite "Basic usage of commands":
+    setup:
+        let boring_commands = (
+            name: newStringArg("<name>", defaultVal="world", help="Person to greet"),
+            help: newHelpCommandArg("help", help="Show help")
+        )
+
+    test "Commands take preference to values":
+        let parsed = parseOrMessage(boring_commands, args= @["help"], command="boring")
+        check(parsed.success)
+        check(parsed.message.isSome)
+        let expected = """
+Usage:
+  boring help
+  boring <name>
+
+Commands:
+  help    Show help
+
+Arguments:
+  <name>  Person to greet""".strip()
+        check(parsed.message.get==expected)
+

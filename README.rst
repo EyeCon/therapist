@@ -8,10 +8,59 @@ errors, suitable for simple scripts and complex tools.
 
 
 Therapist allows you to use a carefully constructed ``tuple`` to specify how you want your commandline 
-arguments to be parsed. Each value in the tuple must be set to an ``Arg``, which specifies how that 
-argument will appear, what values it can take and provides a help string for the user.
+arguments to be parsed. Each value in the tuple must be set to a ``<Type>Arg`` of the appropriate type, which
+specifies how that argument will appear, what values it can take and provides a help string for the user.
 
-The constructor for each ``Arg`` type takes the form:
+A simple 'Hello world' example:
+
+.. code-block:: nim
+
+    import therapist
+
+    # The parser is specified as a tuple
+    let spec = (
+        # Name is a positional argument, by virtue of being surrounded by < and >
+        name: newStringArg(@["<name>"], help="Person to greet"),
+        # --times is an optional argument, by virtue of starting with - and/or --
+        times: newIntArg(@["-t", "--times"], defaultVal=1, help="How many times to greet"),
+        # --version will cause 0.1.0 to be printed
+        version: newMessageArg(@["--version"], "0.1.0", help="Prints version"),
+        # --help will cause a help message to be printed
+        help: newHelpArg(@["-h", "--help"], help="Show help message"),
+    )
+    # `args` and `command` would normally be picked up from the commandline
+    spec.parseOrQuit(prolog="Greeter", args="-t 2 World", command="hello")
+    # If a help message or version was requested or a parse error generated it would be printed
+    # and then the parser would call `quit`. Getting past `parseOrQuit` implies we're ok.
+    for i in 1..spec.times.value:
+        echo "Hello " & spec.name.value
+
+    doAssert spec.name.seen
+    doAssert spec.name.value == "World"
+    doAssert spec.times.seen
+    doAssert spec.times.value == 2
+
+
+The above parser generates the following help message
+
+.. code-block:: sh
+
+    Greeter
+
+    Usage:
+      hello <name>
+      hello --version
+      hello -h|--help
+
+    Arguments:
+      <name>               Person to greet
+
+    Options:
+      -t, --times=<times>  How many times to greet [default: 1]
+      --version            Prints version
+      -h, --help           Show help message
+
+The constructor for each ``<Type>Arg`` type takes the form:
 
 .. code-block:: nim
 
@@ -30,8 +79,9 @@ The constructor for each ``Arg`` type takes the form:
 - Options may be interleaved with arguments, so ``> markup input.txt -o output.html`` is the same as
   ``> markup -o output.html input.txt``
 - Options that take a value derive from ``ValueArg`` and may be entered as ``-o <value>``, ``-o:<value>`` 
-  or ``-o=<value>`` (similarly for the long form i.e. ``--option <value>`` etc). Short options may be
-  repeated, e.g. ``-vvv`` or take values without a separator e.g. ``-o<value>``
+  or ``-o=<value>`` (similarly for the long form i.e. ``--option <value>`` etc). Short options that
+  do not take a value may be repeated, e.g. ``-vvv`` and short options can take values without a 
+  separator e.g. ``-o<value>``
 - A ``CountArg`` is a special type of ``Arg`` that counts how many times it is seen, without taking a 
   value (sometimes called a flag).
 - ``CountArg`` also allows some special variant formats. If you specify ``--[no]option``, then 
@@ -59,7 +109,7 @@ The constructor for each ``Arg`` type takes the form:
   ``Options``. If you want to group them differently, use the ``group`` parameter to define new 
   groups. Groups and arguments will be shown the order that they are appear in the tuple definition.
 - If ``helpLevel`` is set to a value ``x`` greater than 0 the argument will only be shown in a help 
-  mesasge if the ``HelpArg`` is defined ``showLevel`` set to a value greater than or equal to ``x``
+  message if the ``HelpArg`` is defined ``showLevel`` set to a value greater than or equal to ``x``
 - If you want to define a new ``ValueArg`` type ``defineArg`` is a template that will fill in the
   boilerplate for you
 
@@ -98,56 +148,6 @@ Now we can call ``newDateArg`` to ask the user to supply a date
 
 Examples
 --------
-
-A simple 'Hello world' example:
-
-.. code-block:: nim
-
-    import therapist
-
-    # The parser is specified as a tuple
-    let spec = (
-        # Name is a positional argument, by virtue of being surrounded by < and >
-        name: newStringArg(@["<name>"], help="Person to greet"),
-        # --times is an optional argument, by virtue of starting with - and/or --
-        times: newIntArg(@["-t", "--times"], defaultVal=1, help="How many times to greet"),
-        # --version will cause 0.1.0 to be printed
-        version: newMessageArg(@["--version"], "0.1.0", help="Prints version"),
-        # --help will cause a help message to be printed
-        help: newHelpArg(@["-h", "--help"], help="Show help message"),
-    )
-    # `args` and `command` would normally be picked up from the commandline
-    spec.parseOrQuit(prolog="Greeter", args="-t 2 World", command="hello")
-    # If a help message or version was requested or a parse error generated it would be printed
-    # and then the parser would call `quit`. Getting past `parseOrQuit` implies we're ok.
-    for i in 1..spec.times.value:
-        echo "Hello " & spec.name.value
-    
-    doAssert spec.name.seen
-    doAssert spec.name.value == "World"
-    doAssert spec.times.seen
-    doAssert spec.times.value == 2
-
-
-The above parser generates the following help message
-
-.. code-block:: sh
-
-    Greeter
-
-    Usage:
-      hello <name>
-      hello --version
-      hello -h|--help
-
-    Arguments:
-      <name>               Person to greet
-
-    Options:
-      -t, --times=<times>  How many times to greet [default: 1]
-      --version            Prints version
-      -h, --help           Show help message
-
 
 At the other extreme, you can create complex parsers with subcommands (the example below may be 
 familiar to those who have seen `docopt.nim`_). Note that the help message is slightly different; 
@@ -235,7 +235,8 @@ In *rough* order of likelihood of being added:
 - Ints and floats being limited to a range rather than a set of discrete values
 - Support for ``+w`` and ``-w`` to equate to ``w=true`` and ``w=false``
 - Integration with ``bash`` / ``fish`` completion scripts
-- Dependent option requirements i.e. because ``--optionA`` appears, ``--optionB`` is required
+- Dependent option requirements i.e. because ``--optionA`` appears, ``--optionB`` is required, or one of 
+  ``--left`` or ``--right`` is required
 - Case/style insensitive matching
 - Partial matches for ``commands`` i.e. ``pal pus`` is the same as ``pal push``, if that is the 
   only unambiguous match
