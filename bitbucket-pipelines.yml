@@ -3,23 +3,24 @@ image:
 
 pipelines:
     default:
-        - step:
-            name: 'Stable'
-            script: &tests
-                - nim --version
-                - nimble refresh
-                - nimble build
-                - nimble develop
-                - nimble tests
-        - step:
-            name: 'nim-1.4.x'
-            image: nimlang/nim:1.4.8-alpine
-            script: *tests
-        - step:
-            name: 'nim-1.2.x'
-            image: nimlang/nim:1.2.12-alpine
-            script: *tests
-        - step:
-            name: 'nim-1.0.x'
-            image: nimlang/nim:1.0.10-alpine
-            script: *tests
+        - parallel:
+            - step:
+                name: 'Stable'
+                script: &tests
+                    - nim --version
+                    - nimble refresh
+                    - nimble build
+                    - nimble develop
+                    - nimble tests
+            - step:
+                name: 'nim-1.4.x'
+                image: nimlang/nim:1.4.8-alpine
+                script: *tests
+            - step:
+                name: 'nim-1.2.x'
+                image: nimlang/nim:1.2.12-alpine
+                script: *tests
+            - step:
+                name: 'nim-1.0.x'
+                image: nimlang/nim:1.0.10-alpine
+                script: *tests
