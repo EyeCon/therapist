@@ -42,7 +42,8 @@ proc testFile(filename: string, verbose: bool): int =
         let node = rstParse(text, filename, 0, 0, hastoc, {})
         node.gatherExamples(examples)
     else:
-        let node = rstParse(text, filename, 0, 0, {})
+        # SandBoxDisabled allows use of include directive
+        let node = rstParse(text, filename, 0, 0, {roSandboxDisabled})
         node.node.gatherExamples(examples)
     withTempDir("examples"):
         var master = newSeq[string]()
