@@ -41,6 +41,9 @@ proc testFile(filename: string, verbose: bool): int =
         var hastoc: bool
         let node = rstParse(text, filename, 0, 0, hastoc, {})
         node.gatherExamples(examples)
+    elif (NimMajor, NimMinor, NimPatch) < (1, 6, 6):
+        let node = rstParse(text, filename, 0, 0, {})
+        node.node.gatherExamples(examples)
     else:
         # SandBoxDisabled allows use of include directive
         let node = rstParse(text, filename, 0, 0, {roSandboxDisabled})
