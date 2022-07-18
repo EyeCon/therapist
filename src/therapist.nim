@@ -1,3 +1,4 @@
+import macros
 import os
 import options
 import pegs
@@ -936,7 +937,7 @@ method parse(arg: StringPromptArg, value: string, variant: string) =
     arg.value = value
     arg.values.add(value)
 
-template defineArg*[T](TypeName: untyped, cons: untyped, name: string, parseT: proc (value: string): T, defaultT: T) =
+macro defineArg*[T](TypeName: untyped, cons: untyped, name: string, ArgType: typedesc, parseT: proc (value: string): T, defaultT: T, comment="") =
     ## ``defineArg`` is a concession to the power of magic. If you want to define your own ``ValueArg``
     ## for type ``T``, you simply need to pass in a method that is able to parse a string into a ``T``
     ## and a sensible default value. ``default(T)`` is often a good bet, but is not defined for all
@@ -958,7 +959,7 @@ template defineArg*[T](TypeName: untyped, cons: untyped, name: string, parseT: p
     ##    # Define a parser
     ##    proc parseDate(value: string): DateTime = parse(value, "YYYY-MM-dd")
     ##
-    ##    defineArg[DateTime](DateArg, newDateArg, "date", parseDate, DEFAULT_DATE)
+    ##    defineArg[DateTime](DateArg, newDateArg, "date", DateTime, parseDate, DEFAULT_DATE)
     ##
     ##    # We can now use newDateArg to define an argument that takes a date
     ##
@@ -969,61 +970,69 @@ template defineArg*[T](TypeName: untyped, cons: untyped, name: string, parseT: p
     ##
     ##    doAssert(spec.date.value == initDateTime(31, mDec, 1999, 0, 0, 0, 0))
     ## 
-    ## Since: 0.1.0
-    type
-        TypeName* {.inject.} = ref object of ValueArg
-            defaultVal: T
-            value*: T
-            values*: seq[T]
-            choices: seq[T]
+    ## Since: 
+    ## - 0.1.0: Initial definition
+    ## - 0.3.0: Switch to a macro. ArgType now required, comment now possible
+    
+    let comment = newCommentStmtNode(comment.strVal)
 
-    proc cons*(variants: seq[string], help: string, defaultVal: T = defaultT, choices = newSeq[T](), helpvar="", 
-                    group="", required=false, optional=false, multi=false, env="", helpLevel: Natural = 0): TypeName {.inject.} =
-        ## Template-defined constructor - see help for `newStringArg` for the meaning of parameters
-        result = new(TypeName)
-        result.initArg(variants, help, defaultVal, choices, helpvar, group, required, optional, multi, env, helpLevel)
+    result = quote do:
+    
+        type
+            `TypeName`* {.inject.} = ref object of ValueArg
+                defaultVal: `ArgType`
+                value*: `ArgType`
+                values*: seq[`ArgType`]
+                choices: seq[`ArgType`]
 
-    proc cons*(variants: string, help: string, defaultVal: T = defaultT, choices = newSeq[T](), helpvar="", group="", 
-                    required=false, optional=false, multi=false, env="", helpLevel: Natural = 0): TypeName {.inject.} =
-        cons(variants.split(COMMA), help, defaultVal, choices, helpvar, group, required, optional, multi, env, helpLevel)
+        proc `cons`*(variants: seq[string], help: string, defaultVal = `defaultT`, choices = newSeq[`ArgType`](), helpvar="", 
+                        group="", required=false, optional=false, multi=false, env="", helpLevel: Natural = 0): `TypeName` {.inject.} =
+            `comment`
+            result = new(`TypeName`)
+            result.initArg(variants, help, defaultVal, choices, helpvar, group, required, optional, multi, env, helpLevel)
 
-    method render_default(arg: TypeName): string =
-        if arg.defaultVal!=default(typedesc(T)): "[default: " & $arg.defaultVal & "]" else: ""
+        proc `cons`*(variants: string, help: string, defaultVal= `defaultT`, choices = newSeq[`ArgType`](), helpvar="", group="", 
+                        required=false, optional=false, multi=false, env="", helpLevel: Natural = 0): `TypeName` {.inject.} =
+            `comment`
+            `cons`(variants.split(COMMA), help, defaultVal, choices, helpvar, group, required, optional, multi, env, helpLevel)
 
-    method render_choices(arg: TypeName): string =
-        arg.choices.join("|")
+        method render_default(arg: `TypeName`): string =
+            if arg.defaultVal!=default(typedesc(`ArgType`)): "[default: " & $arg.defaultVal & "]" else: ""
 
-    method parse(arg: TypeName, value: string, variant: string) =
-        try:
-            let parsed = parseT(value)
-            arg.check_choices(parsed, variant)
-            arg.value = parsed
-            arg.values.add(parsed)
-        except ValueError:
-            raise newException(ParseError, "Expected a " & name & " for " & variant & ", got: '" & value & "'")
+        method render_choices(arg: `TypeName`): string =
+            arg.choices.join("|")
 
-defineArg[bool](BoolArg, newBoolArg, "boolean", parseBool, false)
+        method parse(arg: `TypeName`, value: string, variant: string) =
+            try:
+                let parsed = `parseT`(value)
+                arg.check_choices(parsed, variant)
+                arg.value = parsed
+                arg.values.add(parsed)
+            except ValueError:
+                raise newException(ParseError, "Expected a " & `name` & " for " & variant & ", got: '" & value & "'")
+
+defineArg[bool](BoolArg, newBoolArg, "boolean", bool, parseBool, false, "An argument where the supplied value must be a boolean")
 
 proc parseFile(value: string): string =
     if not fileExists(value):
         raise newException(ParseError, fmt"File '{value}' not found")
     result = value
 
-defineArg[string](FileArg, newFileArg, "file", parseFile, "")
+defineArg[string](FileArg, newFileArg, "file", string, parseFile, "", "An argument where the supplied value must be an existing file")
 
 proc parseDir(value: string): string =
     if not dirExists(value):
         raise newException(ParseError, fmt"Directory '{value}' not found")
     result = value
 
-defineArg[string](DirArg, newDirArg, "directory", parseDir, "")
+defineArg[string](DirArg, newDirArg, "directory", string, parseDir, "", "An argument where the supplied value must be an existing directory")
 
 proc parsePath(value: string): string =
     if not (fileExists(value) or dirExists(value)):
         raise newException(ParseError, fmt"Path '{value}' not found")
     result = value
 
-defineArg[string](PathArg, newPathArg, "path", parsePath, "")
+defineArg[string](PathArg, newPathArg, "path", string, parsePath, "", "An argument where the supplied value must be an existing file or directory")
 
 proc parseURL(value: string): Uri =
     let parsed = parseUri(value)
@@ -1031,7 +1040,7 @@ proc parseURL(value: string): Uri =
         raise newException(ValueError, "Missing scheme / host")
     result = parsed
 
-defineArg[Uri](URLArg, newURLArg, "URL", parseURL, parseUri(""))
+defineArg[Uri](URLArg, newURLArg, "URL", Uri, parseURL, parseUri(""), "An argument where the supplied value must be a URI")
 
 method register*(arg: Arg, variant: string) {.base.} =
     ## `register` is called by the parser when an argument is seen. If you want to interupt parsing

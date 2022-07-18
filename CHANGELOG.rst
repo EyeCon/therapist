@@ -1,8 +1,13 @@
 Changes
 -------
 
-0.2.0
+0.3.0
 ^^^^^
+
+ - Breaking: Use a macro for `defineArg` to allow generated constructors to have documentation (requires `ArgType` parameter)
+
+0.2.0 2022-07-16
+^^^^^^^^^^^^^^^^
 
 - Breaking: Switch to using `defaultVal` consistently everywhere (previously, some used `default`)
 - Add `parseCopy` to get back a copy of your specification rather than a modified one

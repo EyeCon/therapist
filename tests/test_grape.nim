@@ -35,7 +35,7 @@ method parse(arg: IsoDateArg, value: string, variant: string) =
 
 proc parseDate(value: string): DateTime = parse(value, "YYYY-MM-dd")
 
-defineArg[DateTime](DateArg, newDateArg, "date", parseDate, DEFAULT_DATE)
+defineArg[DateTime](DateArg, newDateArg, "date", DateTime, parseDate, DEFAULT_DATE)
 
 suite "grape":
     ## Ideas for options shamelessly stolen from ripgrep / ag etc
