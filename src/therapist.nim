@@ -72,6 +72,21 @@ let ARGUMENT_VARIANT_FORMAT = peg"""
         word <- \ident
     """
 
+# Allows you match against and capture the o in -o
+let SHORT_OPTION_VARIANT = peg"""
+    option <- ^ prefix {shortOption} $
+    prefix <- '\-'
+    shortOption <- \w
+"""
+
+# Allows you match against and capture the option in --option
+let LONG_OPTION_VARIANT = peg"""
+    option <- ^ prefix prefix {longOption} $
+    prefix <- '\-'
+    longOption <- \w (\w / prefix)+
+"""
+
+
 type
     ArgKind = enum
         akPositional,
@@ -132,6 +147,9 @@ type
     MessageArg* = ref object of CountArg
         ## If this argument is provided, a `MessageError` containing a message will be raised
         message: string
+    FishCompletionArg = ref object of HelpArg
+        ## If this argument is provided, a `MessageError` containing a fish shell completion script will be raised
+        discard
     CommandArg* = ref object of Arg
         ## ``CommandArg`` represents a subcommand, which will be processed with its own parser
         specification*: Specification
@@ -142,6 +160,9 @@ type
     MessageCommandArg* = ref object of CommandArg
         ## ``MessageCommandArg`` allows you to create a command that prints a message
         message: string
+    FishCompletionCommandArg = ref object of HelpCommandArg
+        ## `FishCompletionCommandarg` allows you to create a command that prints a fish shell completion script
+        discard
     Alternatives = ref object of RootObj
         seen: bool
         value: Arg
@@ -166,10 +187,6 @@ type
         ## behaviour is that the exception message will be shown to the user
         ## and the program will terminate indicating success
         discard
-
-    HelpError = object of ArgError
-        ## User has requested help. Passes the level of help to show.
-        showLevel: Natural
 
     SpecificationError* = object of Defect
         ## Indicates an error in the specification. This error is thrown during an attempt
@@ -214,13 +231,24 @@ proc initArg*[A, T](arg: var A, variants: seq[string], help: string, defaultVal:
         arg.count = defaultVal
     else:
         if len(env)>0 and existsEnv(env):
-            arg.parse(string(getEnv(env)), env)
+            {.hint[ConvFromXtoItselfNotNeeded]:off.}
+            # Older versions use tainted string and so need this conversion
+            let value = string(getEnv(env))
+            {.hint[ConvFromXtoItselfNotNeeded]:on.}
+            arg.parse(value, env)
         else:
             arg.value = defaultVal
         arg.values = newSeq[T]()
         arg.helpVar = helpVar
     if required and optional:
         raise newException(SpecificationError, "Arguments can be required or optional not both")
+
+proc initMessageArg*[MA](arg: var MA, variants: seq[string], help: string, group="", helpLevel: Natural = 0) =
+    ## TODO: Rename me
+    arg.variants = variants
+    arg.help = help
+    arg.group = group
+    arg.helpLevel = helpLevel
 
 proc newStringArg*(variants: seq[string], help: string, defaultVal = "", choices=newSeq[string](), helpvar="", 
                     group="", required=false, optional=false, multi=false, env="", helpLevel: Natural = 0): StringArg =
@@ -414,10 +442,7 @@ proc newHelpArg*(variants= @["-h", "--help"], help="Show help message", group=""
     ## 
     ## Since: 0.1.0
     result = new(HelpArg)
-    result.variants = variants
-    result.help = help
-    result.group = group
-    result.helpLevel = helpLevel
+    result.initMessageArg(variants, help, group, helpLevel)
     result.showLevel = showLevel
 
 proc newHelpArg*(variants: string, help="Show help message", group="", helpLevel, showLevel: Natural = 0): HelpArg =
@@ -426,21 +451,25 @@ proc newHelpArg*(variants: string, help="Show help message", group="", helpLevel
     ## Since: 0.2.0
     newHelpArg(variants.split(COMMA), help, group, helpLevel, showLevel)
 
-
 proc newHelpCommandArg*(variants= @["help"], help="Show help message", group="", helpLevel, showLevel: Natural = 0): HelpCommandArg =
     ## Equivalent of `newHelpArg` where help is a command not an option i.e. `> hg help` not `> hg --help`
     ##
     ## Since: 0.2.0
     result = new(HelpCommandArg)
-    result.variants = variants
+    result.initMessageArg(variants, help, group, helpLevel)
     result.specification = newSpecification((help: newHelpArg()), "", "")
-    result.help = help
-    result.group = group
-    result.helpLevel = helpLevel
     result.showLevel = showLevel
 
 proc newHelpCommandArg*(variants: string, help="Show help message", group="", helpLevel, showLevel: Natural = 0): HelpCommandArg =
     newHelpCommandArg(variants.split(COMMA), help, group, helpLevel, showLevel)
+
+proc newFishCompletionCommandArg*(variants: seq[string], help: string, group="", helpLevel=0, showLevel: Natural = 0): FishCompletionCommandArg =
+    result = new(FishCompletionCommandArg)
+    result.initMessageArg(variants, help, group, helpLevel)
+    result.showLevel = showLevel
+
+proc newFishCompletionCommandArg*(variants: string, help: string, group="", helpLevel=0, showLevel: Natural = 0): FishCompletionCommandArg =
+    newFishCompletionCommandArg(variants.split(COMMA), help, group, helpLevel, showLevel)
 
 proc newMessageArg*(variants: seq[string], message: string, help: string, group="", helpLevel: Natural = 0): MessageArg =
     ## If a `MessageArg` is seen, a message will be shown. Might be used to display a version
@@ -459,11 +488,8 @@ proc newMessageArg*(variants: seq[string], message: string, help: string, group=
     ## 
     ## Since: 0.1.0
     result = new(MessageArg)
-    result.variants = variants
+    result.initMessageArg(variants, help, group, helpLevel)
     result.message = message
-    result.help = help
-    result.group = group
-    result.helpLevel = helpLevel
 
 proc newMessageArg*(variants: string, message: string, help: string, group="", helpLevel: Natural = 0): MessageArg =
     ## Convenience method where `variants` are provided as a comma-separated string
@@ -476,25 +502,26 @@ proc newMessageCommandArg*(variants: seq[string], message: string, help="Show he
     ##
     ## Since: 0.2.0
     result = new(MessageCommandArg)
-    result.variants = variants
+    result.initMessageArg(variants, help, group, helpLevel)
     result.specification = newSpecification((help: newHelpArg()), "", "")
     result.message = message
-    result.help = help
-    result.group = group
-    result.helpLevel = helpLevel
 
 proc newMessageCommandArg*(variants: seq, message: string, help="Show help message", group="", helpLevel: Natural = 0): MessageCommandArg =
     newMessageCommandArg(variants.split(COMMA), message, help, group, helpLevel)
+
+proc newFishCompletionArg*(variants: seq, help="Show a completion script for fish shell", group="", helpLevel: Natural = 0): FishCompletionArg =
+    result = new(FishCompletionArg)
+    result.initMessageArg(variants, help, group, helpLevel)
+
+proc newFishCompletionArg*(variants: string, help="Show a completion script for fish shell", group="", helpLevel: Natural = 0): FishCompletionArg =
+    newFishCompletionArg(variants.split(COMMA), help, group, helpLevel)
 
 proc newCommandArg*[S](variants: seq[string], specification: S, help="", prolog="", epilog="", group="", 
                         helpLevel: Natural = 0, handle: proc(spec: S) = nil): CommandArg =
     ## Version of `newCommandArg` to be used when there is no need to capture options from the main parser
     result = new(CommandArg)
-    result.variants = variants
+    result.initMessageArg(variants, help, group, helpLevel)
     result.specification = newSpecification(specification, prolog, epilog)
-    result.help = help
-    result.group = group
-    result.helpLevel = helpLevel
     if not isnil(handle):
         result.handler = () => handle(specification)
 
@@ -829,6 +856,156 @@ proc rewrap(text: string, width=80, newLine="\n"): string =
     paragraphs.apply((line: string) => wrapWords(line.replace("\n", " "), width, newLine=newLine))
     paragraphs.join(newLine & newLine)
 
+template check_choices*[T](arg: Arg, value: T, variant: string) =
+    ## `check_choices` checks that `value` has been set to one of the acceptable `choices` values
+    ## 
+    ## Since: 0.1.0
+    if len(arg.choices)>0 and not (value in arg.choices):
+        let message = "Expected " & variant & " value to be " & arg.render_choices() & " , got: '" & $value & "'"
+        raise newException(ParseError, message)
+
+method parse(arg: IntArg, value: string, variant: string) =
+    try:
+        let parsed = parseInt(value)
+        arg.check_choices(parsed, variant)
+        arg.value = parsed
+        arg.values.add(parsed)
+    except ValueError:
+        raise newException(ParseError, fmt"Expected an integer for {variant}, got: '{value}'")
+
+method parse(arg: FloatArg, value: string, variant: string) =
+    try:
+        let parsed = parseFloat(value)
+        arg.check_choices(parsed, variant)
+        arg.value = parsed
+        arg.values.add(parsed)
+    except ValueError:
+        raise newException(ParseError, fmt"Expected a float for {variant}, got: '{value}'")
+
+method parse(arg: StringArg, value: string, variant: string) =
+    arg.check_choices(value, variant)
+    arg.value = value
+    arg.values.add(value)
+
+method parse(arg: StringPromptArg, value: string, variant: string) =
+    arg.check_choices(value, variant)
+    arg.value = value
+    arg.values.add(value)
+
+macro defineArg*[T](TypeName: untyped, cons: untyped, name: string, ArgType: typedesc, parseT: proc (value: string): T, defaultT: T, comment="") =
+    ## ``defineArg`` allows you to define your own ``ValueArg`` type simply by providing a ``proc`` that 
+    ## can parse a string into a ``T``.
+    ## 
+    ## - ``T`` The type of the parsed value
+    ## - ``TypeName`` The name of your ``ValueArg`` type
+    ## - ``cons`` The name of the constructor for your new type
+    ## - ``name`` What to call this type in help messages i.e. ``Expected a <name> got ...``
+    ## - ``ArgType`` The type of the value (i.e. same as ``T``)
+    ## - ``parseT`` A proc that parses a value into a ``T``, raising ``ValueError`` or ``ParseError`` 
+    ##   on failure
+    ## - ``defaultT`` The default value to use if none is provided (``default(T)`` is often a good bet, 
+    ##   but is not defined for all types.)
+    ## - ``comment`` The docstring to use in the ``cons`` constructor
+    ##
+    ## Notes: 
+    ## 
+    ## - If ``parseT`` fails by raising a ``ValueError`` an error message will be written for you. To
+    ##   provide a custom error message, raise a ``ParseError``
+    ## - The error messages can get gnarly, parameters in docstring contain `gensym` for unknown reasons
+    ##
+    ## .. code-block:: nim
+    ##    :test:
+    ##
+    ##    import times
+    ##
+    ##    # Decide on your default value
+    ##    let DEFAULT_DATE = initDateTime(1, mJan, 2000, 0, 0, 0, 0)
+    ##
+    ##    # Define a parser
+    ##    proc parseDate(value: string): DateTime = parse(value, "YYYY-MM-dd")
+    ##
+    ##    defineArg[DateTime](DateArg, newDateArg, "date", DateTime, parseDate, DEFAULT_DATE)
+    ##
+    ##    # We can now use newDateArg to define an argument that takes a date
+    ##
+    ##    let spec = (
+    ##      date: newDateArg(@["<date>"], help="Date to change to")
+    ##    )
+    ##    spec.parse(args="1999-12-31", "set-party-date")
+    ##
+    ##    doAssert(spec.date.value == initDateTime(31, mDec, 1999, 0, 0, 0, 0))
+    ## 
+    ## Since: 
+    ## - 0.1.0: Initial definition
+    ## - 0.3.0: Switch to a macro. ArgType now required, comment now possible
+    
+    let comment = newCommentStmtNode(comment.strVal)
+    result = quote do:
+    
+        type
+            `TypeName`* {.inject.} = ref object of ValueArg
+                defaultVal: `ArgType`
+                value*: `ArgType`
+                values*: seq[`ArgType`]
+                choices: seq[`ArgType`]
+
+        proc `cons`*(variants: seq[string], help: string, defaultVal = `defaultT`, choices = newSeq[`ArgType`](), helpvar="",
+                        group="", required=false, optional=false, multi=false, env="", helpLevel: Natural = 0): `TypeName` {.inject.} =
+            `comment`
+            result = new(`TypeName`)
+            result.initArg(variants, help, defaultVal, choices, helpvar, group, required, optional, multi, env, helpLevel)
+
+        proc `cons`*(variants: string, help: string, defaultVal= `defaultT`, choices = newSeq[`ArgType`](), helpvar="", group="",
+                        required=false, optional=false, multi=false, env="", helpLevel: Natural = 0): `TypeName` {.inject.} =
+            `comment`
+            `cons`(variants.split(COMMA), help, defaultVal, choices, helpvar, group, required, optional, multi, env, helpLevel)
+
+        method render_default(arg: `TypeName`): string =
+            if arg.defaultVal!=default(typedesc(`ArgType`)): "[default: " & $arg.defaultVal & "]" else: ""
+
+        method render_choices(arg: `TypeName`): string =
+            arg.choices.join("|")
+
+        method parse(arg: `TypeName`, value: string, variant: string) =
+            try:
+                let parsed = `parseT`(value)
+                arg.check_choices(parsed, variant)
+                arg.value = parsed
+                arg.values.add(parsed)
+            except ValueError:
+                raise newException(ParseError, "Expected a " & `name` & " for " & variant & ", got: '" & value & "'")
+
+defineArg[bool](BoolArg, newBoolArg, "boolean", bool, parseBool, false, "An argument where the supplied value must be a boolean")
+
+proc parseFile(value: string): string =
+    if not fileExists(value):
+        raise newException(ParseError, fmt"File '{value}' not found")
+    result = value
+
+defineArg[string](FileArg, newFileArg, "file", string, parseFile, "", "An argument where the supplied value must be an existing file")
+
+proc parseDir(value: string): string =
+    if not dirExists(value):
+        raise newException(ParseError, fmt"Directory '{value}' not found")
+    result = value
+
+defineArg[string](DirArg, newDirArg, "directory", string, parseDir, "", "An argument where the supplied value must be an existing directory")
+
+proc parsePath(value: string): string =
+    if not (fileExists(value) or dirExists(value)):
+        raise newException(ParseError, fmt"Path '{value}' not found")
+    result = value
+
+defineArg[string](PathArg, newPathArg, "path", string, parsePath, "", "An argument where the supplied value must be an existing file or directory")
+
+proc parseURL(value: string): Uri =
+    let parsed = parseUri(value)
+    if not (len(parsed.scheme)>0 and len(parsed.hostname)>0):
+        raise newException(ValueError, "Missing scheme / host")
+    result = parsed
+
+defineArg[Uri](URLArg, newURLArg, "URL", Uri, parseURL, parseUri(""), "An argument where the supplied value must be a URI")
+
 proc render_help(spec: Specification, command: string, showLevel: Natural = 0): string =
     var lines = @["Usage:"]
     # Fetch a list of usage examples
@@ -900,176 +1077,91 @@ proc render_help*(spec: tuple, prolog="", epilog="", command=extractFilename(get
     ## be shown in the help message.
     newSpecification(spec, prolog, epilog).render_help(command, showLevel)
 
+proc render_fish_completion(spec: Specification, command=extractFilename(getAppFilename()), showLevel: Natural): string =
+    ### Returns a fish completion script
+    proc complete_option(condition: string, variant: string, option: Arg): string =
+        let condition = condition.strip()
+        let args = if not (option of ValueArg):
+            ""
+            elif len(option.render_choices())>0:
+                fmt""" -f -r -a '{option.render_choices().replace("|", " ")}'"""
+            elif (option of PathArg) or (option of DirArg):
+                " -F -r"
+            else:
+                " -r"
 
-template check_choices*[T](arg: Arg, value: T, variant: string) =
-    ## `check_choices` checks that `value` has been set to one of the acceptable `choices` values
-    ## 
-    ## Since: 0.1.0
-    if len(arg.choices)>0 and not (value in arg.choices):
-        let message = "Expected " & variant & " value to be " & arg.render_choices() & " , got: '" & $value & "'"
-        raise newException(ParseError, message)
 
-method parse(arg: IntArg, value: string, variant: string) =
-    try:
-        let parsed = parseInt(value)
-        arg.check_choices(parsed, variant)
-        arg.value = parsed
-        arg.values.add(parsed)
-    except ValueError:
-        raise newException(ParseError, fmt"Expected an integer for {variant}, got: '{value}'")
-
-method parse(arg: FloatArg, value: string, variant: string) =
-    try:
-        let parsed = parseFloat(value)
-        arg.check_choices(parsed, variant)
-        arg.value = parsed
-        arg.values.add(parsed)
-    except ValueError:
-        raise newException(ParseError, fmt"Expected a float for {variant}, got: '{value}'")
-
-method parse(arg: StringArg, value: string, variant: string) =
-    arg.check_choices(value, variant)
-    arg.value = value
-    arg.values.add(value)
-
-method parse(arg: StringPromptArg, value: string, variant: string) =
-    arg.check_choices(value, variant)
-    arg.value = value
-    arg.values.add(value)
-
-macro defineArg*[T](TypeName: untyped, cons: untyped, name: string, ArgType: typedesc, parseT: proc (value: string): T, defaultT: T, comment="") =
-    ## ``defineArg`` is a concession to the power of magic. If you want to define your own ``ValueArg``
-    ## for type ``T``, you simply need to pass in a method that is able to parse a string into a ``T``
-    ## and a sensible default value. ``default(T)`` is often a good bet, but is not defined for all
-    ## types.
-    ##
-    ## If ``parseT`` fails by raising a ``ValueError`` an error message will be written for you. To
-    ## provide a custom error message, raise a ``ParseError``
-    ##
-    ## Beware, the error messages can get gnarly, generated docstrings will be ugly
-    ##
-    ## .. code-block:: nim
-    ##    :test:
-    ##
-    ##    import times
-    ##
-    ##    # Decide on your default value
-    ##    let DEFAULT_DATE = initDateTime(1, mJan, 2000, 0, 0, 0, 0)
-    ##
-    ##    # Define a parser
-    ##    proc parseDate(value: string): DateTime = parse(value, "YYYY-MM-dd")
-    ##
-    ##    defineArg[DateTime](DateArg, newDateArg, "date", DateTime, parseDate, DEFAULT_DATE)
-    ##
-    ##    # We can now use newDateArg to define an argument that takes a date
-    ##
-    ##    let spec = (
-    ##      date: newDateArg(@["<date>"], help="Date to change to")
-    ##    )
-    ##    spec.parse(args="1999-12-31", "set-party-date")
-    ##
-    ##    doAssert(spec.date.value == initDateTime(31, mDec, 1999, 0, 0, 0, 0))
-    ## 
-    ## Since: 
-    ## - 0.1.0: Initial definition
-    ## - 0.3.0: Switch to a macro. ArgType now required, comment now possible
+        # let require = if option of ValueArg: " -r" else: ""
+        # let choices = if len(option.render_choices())>0: " -a " & option.render_choices().replace("|", " ") else: ""
+        # option of ValueArg and len(ValueArg(option).choices)>0: "-a " & " ".join(ValueArg(option).choices) else: ""
+        var option_text: array[1, string]
+        if variant.match(SHORT_OPTION_VARIANT, option_text):
+            fmt"""complete -c {command} -n {condition} -s {option_text[0]} -d '{option.help}'{args}"""
+        elif variant.match(LONG_OPTION_VARIANT, option_text):
+            fmt"""complete -c {command} -n {condition} -l {option_text[0]} -d '{option.help}'{args}"""
+        else:
+            raise newException(SpecificationError, fmt"Expected a variant in the format -o or --option, got '{variant}'")
     
-    let comment = newCommentStmtNode(comment.strVal)
+    var lines = newSeq[string](0)
+    lines.add(fmt"complete -e -c {command}")
+    var subcommands = newSeq[string](0)
+    for subcommand in spec.commandList:
+        if subcommand.helpLevel <= showLevel:
+            for variant in subcommand.variants:
+                subcommands.add(variant)
+                for ovariant, option in subcommand.specification.options:
+                    if option.helpLevel <= showLevel and option.kind == ArgKind.akOptional:
+                        lines.add(complete_option(fmt""""__fish_seen_subcommand_from {variant}" """, ovariant, option))
+                            
+    let command_list = subcommands.join(" ")
+    lines.add(fmt"set -l SUBCOMMAND_LIST {command_list}")
+    for subcommand in spec.commandList:
+        if subcommand.helpLevel <= showLevel:
+            for variant in subcommand.variants:
+                lines.add(fmt"""complete -c {command} -n "not __fish_seen_subcommand_from $SUBCOMMAND_LIST" -a "{variant}" -d '{subcommand.help}'""")
+    for variant, option in spec.options:
+        if option.helpLevel <= showLevel and option.kind == ArgKind.akOptional:
+            lines.add(complete_option(fmt""" "not __fish_seen_subcommand_from $SUBCOMMAND_LIST" """, variant, option))                
+    lines.join("\n")
 
-    result = quote do:
-    
-        type
-            `TypeName`* {.inject.} = ref object of ValueArg
-                defaultVal: `ArgType`
-                value*: `ArgType`
-                values*: seq[`ArgType`]
-                choices: seq[`ArgType`]
-
-        proc `cons`*(variants: seq[string], help: string, defaultVal = `defaultT`, choices = newSeq[`ArgType`](), helpvar="", 
-                        group="", required=false, optional=false, multi=false, env="", helpLevel: Natural = 0): `TypeName` {.inject.} =
-            `comment`
-            result = new(`TypeName`)
-            result.initArg(variants, help, defaultVal, choices, helpvar, group, required, optional, multi, env, helpLevel)
-
-        proc `cons`*(variants: string, help: string, defaultVal= `defaultT`, choices = newSeq[`ArgType`](), helpvar="", group="", 
-                        required=false, optional=false, multi=false, env="", helpLevel: Natural = 0): `TypeName` {.inject.} =
-            `comment`
-            `cons`(variants.split(COMMA), help, defaultVal, choices, helpvar, group, required, optional, multi, env, helpLevel)
-
-        method render_default(arg: `TypeName`): string =
-            if arg.defaultVal!=default(typedesc(`ArgType`)): "[default: " & $arg.defaultVal & "]" else: ""
-
-        method render_choices(arg: `TypeName`): string =
-            arg.choices.join("|")
-
-        method parse(arg: `TypeName`, value: string, variant: string) =
-            try:
-                let parsed = `parseT`(value)
-                arg.check_choices(parsed, variant)
-                arg.value = parsed
-                arg.values.add(parsed)
-            except ValueError:
-                raise newException(ParseError, "Expected a " & `name` & " for " & variant & ", got: '" & value & "'")
-
-defineArg[bool](BoolArg, newBoolArg, "boolean", bool, parseBool, false, "An argument where the supplied value must be a boolean")
-
-proc parseFile(value: string): string =
-    if not fileExists(value):
-        raise newException(ParseError, fmt"File '{value}' not found")
-    result = value
-
-defineArg[string](FileArg, newFileArg, "file", string, parseFile, "", "An argument where the supplied value must be an existing file")
-
-proc parseDir(value: string): string =
-    if not dirExists(value):
-        raise newException(ParseError, fmt"Directory '{value}' not found")
-    result = value
-
-defineArg[string](DirArg, newDirArg, "directory", string, parseDir, "", "An argument where the supplied value must be an existing directory")
-
-proc parsePath(value: string): string =
-    if not (fileExists(value) or dirExists(value)):
-        raise newException(ParseError, fmt"Path '{value}' not found")
-    result = value
-
-defineArg[string](PathArg, newPathArg, "path", string, parsePath, "", "An argument where the supplied value must be an existing file or directory")
-
-proc parseURL(value: string): Uri =
-    let parsed = parseUri(value)
-    if not (len(parsed.scheme)>0 and len(parsed.hostname)>0):
-        raise newException(ValueError, "Missing scheme / host")
-    result = parsed
-
-defineArg[Uri](URLArg, newURLArg, "URL", Uri, parseURL, parseUri(""), "An argument where the supplied value must be a URI")
-
-method register*(arg: Arg, variant: string) {.base.} =
+method register*(arg: Arg, variant: string, command: string, spec: Specification) {.base.} =
     ## `register` is called by the parser when an argument is seen. If you want to interupt parsing
     ## e.g. to print help, now is the time to do it
     arg.count += 1
     if arg.count>1 and not arg.multi:
         raise newException(ParseError, fmt"Duplicate occurrence of '{variant}'")
 
-method register(arg: MessageArg, variant: string) =
+method register(arg: MessageArg, variant: string, command: string, spec: Specification) =
     ## This will cause a `MessageError` to be passed back up the chain containing the text from the MessageArg
-    procCall Arg(arg).register(variant)
+    procCall Arg(arg).register(variant, command, spec)
     raise newException(MessageError, arg.message)
 
-method register(arg: MessageCommandArg, variant: string) =
+method register(arg: MessageCommandArg, variant: string, command: string, spec: Specification) =
     ## This will cause a `MessageError` to be passed back up the chain containing the text from the MessageArg
-    procCall Arg(arg).register(variant)
+    procCall Arg(arg).register(variant, command, spec)
     raise newException(MessageError, arg.message)
 
-method register(arg: HelpArg, variant: string) =
+method register(arg: HelpArg, variant: string, command: string, spec: Specification) =
     ## This will cause a `HelpError` to be passed back up the chain, telling the parser to render a help message
-    procCall Arg(arg).register(variant)
-    raise (ref HelpError)(showLevel: arg.showLevel, msg: "Help")
+    procCall Arg(arg).register(variant, command, spec)
+    raise newException(MessageError, spec.render_help(command, arg.showLevel))
 
-method register(arg: HelpCommandArg, variant: string) =
+method register(arg: HelpCommandArg, variant: string, command: string, spec: Specification) =
     ## This will cause a `HelpError` to be passed back up the chain, telling the parser to render a help message
-    procCall Arg(arg).register(variant)
-    raise (ref HelpError)(showLevel: arg.showLevel, msg: "Help")
+    procCall Arg(arg).register(variant, command, spec)
+    raise newException(MessageError, spec.render_help(command, arg.showLevel))
 
-method register*(arg: CountArg, variant: string) =
+method register(arg: FishCompletionArg, variant: string, command: string, spec: Specification) =
+    ## This will cause a `HelpError` to be passed back up the chain, telling the parser to render a fish completion message
+    procCall Arg(arg).register(variant, command, spec)
+    raise newException(MessageError, spec.render_fish_completion(command, arg.showLevel))
+
+method register(arg: FishCompletionCommandArg, variant: string, command: string, spec: Specification) =
+    ## This will cause a `HelpError` to be passed back up the chain, telling the parser to render a help message
+    procCall Arg(arg).register(variant, command, spec)
+    raise newException(MessageError, spec.render_fish_completion(command, arg.showLevel))
+
+method register*(arg: CountArg, variant: string, command: string, spec: Specification) =
     if arg.count != 0 and not arg.multi:
         raise newEXception(ParseError, fmt"Duplicate occurence of '{variant}'")
     arg.count += (if variant in arg.down: -1 else: 1)
@@ -1080,9 +1172,9 @@ func seen*(arg: Arg): bool =
     ## Since: 0.1.0
     arg.count != 0
 
-proc consume(arg: Arg, args: seq[string], variant: string, pos: int, command: string): int =
+proc consume(arg: Arg, args: seq[string], variant: string, pos: int, command: string, spec: Specification): int =
     # Consume an argument. ValueArgs consume one argument at a time, Commands consume all the remaining arguments
-    arg.register(variant)
+    arg.register(variant, command, spec)
     if arg of PromptArg:
         let parg = PromptArg(arg)
         let prompt = if len(parg.prompt)>0: parg.prompt else: fmt"{arg.helpvar}: "
@@ -1117,100 +1209,97 @@ proc parse(specification: Specification, args: seq[string], command: string, sta
     var pos = start
     var positionals = newSeq[string]()
 
-    try:
-        # First, sift out options - what's left are the positionals
-        # Subcommands are contained in the options, as soon as we see a
-        # subcommand we will switch to the subcommand parser
-        var option_value: array[2, string]
-        while pos < len(args):
-            # Check for end of options
-            if args[pos]=="--":
+    # First, sift out options - what's left are the positionals
+    # Subcommands are contained in the options, as soon as we see a
+    # subcommand we will switch to the subcommand parser
+    var option_value: array[2, string]
+    while pos < len(args):
+        # Check for end of options
+        if args[pos]=="--":
+            pos += 1
+            while pos < len(args):
+                positionals.add(args[pos])
                 pos += 1
-                while pos < len(args):
-                    positionals.add(args[pos])
-                    pos += 1
-            # Check if it's an option (or a command)
-            elif args[pos] in specification.options:
-                let variant = args[pos]
-                let option = specification.options[variant]
-                pos += 1
-                pos += option.consume(args, variant, pos, command)
-                if variant in specification.alternatives:
-                    let alternatives = specification.alternatives[variant]
-                    if alternatives.seen:
-                        if alternatives.value != option:
-                            raise newException(ParseError, fmt"Alternative to {variant} already seen")
-                    else:
-                        alternatives.consume(option)
-            # Check if it's an option with a value attached --option=value
-            elif args[pos].match(OPTION_VALUE_FORMAT, option_value):
-                if option_value[0] notin specification.options:
-                    raise newException(ParseError, fmt"Unrecognised option: {option_value[0]}")
-                let variant = option_value[0]
-                let option = specification.options[variant]
-                if not (option of ValueArg):
-                    raise newException(ParseError, fmt"Option {variant} does not take a commandline value")
-                pos += 1
-                discard option.consume(@[option_value[1]], variant, 0, command)
-            # Check if it's an unexpected option
-            elif args[pos] =~ OPTION_VARIANT_FORMAT:
-                raise newException(ParseError, fmt"Unrecognised option: {args[pos]}")
-            # Check if it's a short option followed by something
-            elif args[pos] =~ peg"\-\w.+":
-                # Iterate through the letters in the short option
-                for index, letter in args[pos].substr(1):
-                    let variant = "-" & letter
-                    if variant notin specification.options:
-                        raise newException(ParseError, fmt"Unrecognised option: {variant} in {args[pos]}")
-                    let option = specification.options[variant]
-                    if option of ValueArg:
-                        let value = args[pos].substr(2+index)
-                        discard option.consume(@[value], variant, 0, command)
-                        break
-                    else:
-                        discard option.consume(@[], variant, 0, command)
-                pos += 1
-            else:
-                if len(specification.argumentList)>0:
-                    positionals.add(args[pos])
-                    pos += 1
-                elif len(specification.commandList)>0:
-                    let command = specification.commandList[0]
-                    let variant = command.variants[0]
-                    let distance = dlDistance(args[pos], variant)
-                    var closest = (command: command, variant: variant, distance: distance)
-                    for command in specification.commandList:
-                        for variant in command.variants:
-                            let distance = dlDistance(args[pos], variant)
-                            if distance <  closest.distance:
-                                closest = (command: command, variant: variant, distance: distance)
-                    if closest.distance==1:
-                        raise newException(ParseError, fmt"Unexpected command: '{args[pos]}' - did you mean '{closest.variant}'?")
-                    raise newException(ParseError, fmt"Unexpected command: {args[pos]}")
+        # Check if it's an option (or a command)
+        elif args[pos] in specification.options:
+            let variant = args[pos]
+            let option = specification.options[variant]
+            pos += 1
+            pos += option.consume(args, variant, pos, command, specification)
+            if variant in specification.alternatives:
+                let alternatives = specification.alternatives[variant]
+                if alternatives.seen:
+                    if alternatives.value != option:
+                        raise newException(ParseError, fmt"Alternative to {variant} already seen")
                 else:
-                    raise newException(ParseError, fmt"Unexpected argument: {args[pos]}")
+                    alternatives.consume(option)
+        # Check if it's an option with a value attached --option=value
+        elif args[pos].match(OPTION_VALUE_FORMAT, option_value):
+            if option_value[0] notin specification.options:
+                raise newException(ParseError, fmt"Unrecognised option: {option_value[0]}")
+            let variant = option_value[0]
+            let option = specification.options[variant]
+            if not (option of ValueArg):
+                raise newException(ParseError, fmt"Option {variant} does not take a commandline value")
+            pos += 1
+            discard option.consume(@[option_value[1]], variant, 0, command, specification)
+        # Check if it's an unexpected option
+        elif args[pos] =~ OPTION_VARIANT_FORMAT:
+            raise newException(ParseError, fmt"Unrecognised option: {args[pos]}")
+        # Check if it's a short option followed by something
+        elif args[pos] =~ peg"\-\w.+":
+            # Iterate through the letters in the short option
+            for index, letter in args[pos].substr(1):
+                let variant = "-" & letter
+                if variant notin specification.options:
+                    raise newException(ParseError, fmt"Unrecognised option: {variant} in {args[pos]}")
+                let option = specification.options[variant]
+                if option of ValueArg:
+                    let value = args[pos].substr(2+index)
+                    discard option.consume(@[value], variant, 0, command, specification)
+                    break
+                else:
+                    discard option.consume(@[], variant, 0, command, specification)
+            pos += 1
+        else:
+            if len(specification.argumentList)>0:
+                positionals.add(args[pos])
+                pos += 1
+            elif len(specification.commandList)>0:
+                let command = specification.commandList[0]
+                let variant = command.variants[0]
+                let distance = dlDistance(args[pos], variant)
+                var closest = (command: command, variant: variant, distance: distance)
+                for command in specification.commandList:
+                    for variant in command.variants:
+                        let distance = dlDistance(args[pos], variant)
+                        if distance <  closest.distance:
+                            closest = (command: command, variant: variant, distance: distance)
+                if closest.distance==1:
+                    raise newException(ParseError, fmt"Unexpected command: '{args[pos]}' - did you mean '{closest.variant}'?")
+                raise newException(ParseError, fmt"Unexpected command: {args[pos]}")
+            else:
+                raise newException(ParseError, fmt"Unexpected argument: {args[pos]}")
 
-        # Check required options have been supplied
-        for option in specification.optionList:
-            if option.required and not option.seen:
-                let variants = option.variants.join(", ")
-                raise newException(ParseError, fmt"Missing required option: '{variants}'")
+    # Check required options have been supplied
+    for option in specification.optionList:
+        if option.required and not option.seen:
+            let variants = option.variants.join(", ")
+            raise newException(ParseError, fmt"Missing required option: '{variants}'")
 
-        pos = 0
+    pos = 0
 
-        # Now process the arguments
-        for argpos, argument in specification.argumentList:
-            if pos < len(positionals) or not argument.optional:
-                pos += argument.consume(positionals, argument.variants[0], pos, command)
-                if argument.multi:
-                    # Multi is greedy
-                    let num_arguments_remaining = len(specification.argumentList) - (argpos + 1)
-                    while pos < len(positionals) - num_arguments_remaining:
-                        pos += argument.consume(positionals, argument.variants[0], pos, command)
-        if pos < len(positionals):
-            raise newException(ParseError, fmt"Unconsumed argument: {positionals[pos]}")
-    except HelpError as e:
-        raise newException(MessageError, render_help(specification, command, e.showLevel))
+    # Now process the arguments
+    for argpos, argument in specification.argumentList:
+        if pos < len(positionals) or not argument.optional:
+            pos += argument.consume(positionals, argument.variants[0], pos, command, specification)
+            if argument.multi:
+                # Multi is greedy
+                let num_arguments_remaining = len(specification.argumentList) - (argpos + 1)
+                while pos < len(positionals) - num_arguments_remaining:
+                    pos += argument.consume(positionals, argument.variants[0], pos, command, specification)
+    if pos < len(positionals):
+        raise newException(ParseError, fmt"Unconsumed argument: {positionals[pos]}")
 
 proc parse*(specification: tuple, prolog="", epilog="", args: seq[string] = commandLineParams(), command = extractFilename(getAppFilename())) =
     ## Uses the provided specification to parse the input, which defaults to the commandline parameters

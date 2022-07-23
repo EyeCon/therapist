@@ -5,6 +5,8 @@ Changes
 ^^^^^
 
  - Breaking: Use a macro for `defineArg` to allow generated constructors to have documentation (requires `ArgType` parameter)
+ - Breaking: Pass specification parameter to `register` method.
+ - Generate completion scripts for fish shell
 
 0.2.0 2022-07-16
 ^^^^^^^^^^^^^^^^

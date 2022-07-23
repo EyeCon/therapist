@@ -11,6 +11,13 @@ Therapist allows you to use a carefully constructed ``tuple`` to specify how you
 arguments to be parsed. Each value in the tuple must be set to a ``<Type>Arg`` of the appropriate type, which
 specifies how that argument will appear, what values it can take and provides a help string for the user.
 
+Features:
+- Type-safe - Therapist will check that supplied values are of the expected type and makes defining your own types easy
+- Powerful - Therapist has patterns for both single-file scripts and scripts with multiple commands split between files (e.g. ``git``)
+- Flexible - Supports defaults, choices, using default values from environment variables, options that are not shown in help messages, required options and optional arguments
+- Batteries-included - Generates beautiful help messages, though you are free to roll your own (and fish-shell completions)
+- Helpful - Intelligent suggestions ``git blme`` -> did you mean ``git blame``?
+
 A simple 'Hello world' example:
 
 .. code-block:: nim
@@ -32,6 +39,7 @@ A simple 'Hello world' example:
     spec.parseOrQuit(prolog="Greeter", args="-t 2 World", command="hello")
     # If a help message or version was requested or a parse error generated it would be printed
     # and then the parser would call `quit`. Getting past `parseOrQuit` implies we're ok.
+    # `spec` has now been modified to reflect the supplied arguments
     for i in 1..spec.times.value:
         echo "Hello " & spec.name.value
 
@@ -126,6 +134,7 @@ Argument types provided out of the box
    * ``PathArg`` - expects a string that must point to an existing file or directory
 - ``CountArg`` - expects no value, simply counts how many times the argument is seen
 - ``HelpArg`` - if seen, prints an auto-generated help message
+- ``FishCompletionArg`` - if seen, prints a fish completion script
 - ``MessageArg`` - if seen, prints a message (e.g. version number)
 
 Creating your own argument type
@@ -142,7 +151,7 @@ to create a ``DateArg`` type that only accepts ISO-formatted dates:
 
     let DEFAULT_DATE = initDateTime(1, mJan, 2000, 0, 0, 0, 0)
     proc parseDate(value: string): DateTime = parse(value, "YYYY-MM-dd")
-    defineArg[DateTime](DateArg, newDateArg, "date", parseDate, DEFAULT_DATE)
+    defineArg[DateTime](DateArg, newDateArg, "date", DateTime, parseDate, DEFAULT_DATE)
 
 Now we can call ``newDateArg`` to ask the user to supply a date
 
@@ -234,9 +243,8 @@ In *rough* order of likelihood of being added:
 - Options for help format from columns (current) to paragraphs
 - Ints and floats being limited to a range rather than a set of discrete values
 - Support for ``+w`` and ``-w`` to equate to ``w=true`` and ``w=false``
-- Integration with ``bash`` / ``fish`` completion scripts
-- Dependent option requirements i.e. because ``--optionA`` appears, ``--optionB`` is required, or one of 
-  ``--left`` or ``--right`` is required
+- Generation of ``bash`` / ``powershell`` completion scripts
+- Dependent option requirements i.e. because ``--optionA`` appears, ``--optionB`` is required
 - Case/style insensitive matching
 - Partial matches for ``commands`` i.e. ``pal pus`` is the same as ``pal push``, if that is the 
   only unambiguous match
