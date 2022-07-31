@@ -17,9 +17,9 @@ when (NimMajor, NimMinor) < (1, 6):
 else:
     let DEFAULT_DATE = dateTime(2000, mJan, 1)
 
-proc newIsoDateArg*(variants: seq[string], help: string, defaultVal = DEFAULT_DATE, choices = newSeq[DateTime](), helpvar="", group="", required=false, optional=false, multi=false, env="", hide: Natural = 0): IsoDateArg =
+proc newIsoDateArg*(variants: seq[string], help: string, longHelp = "", defaultVal = DEFAULT_DATE, choices = newSeq[DateTime](), helpvar="", group="", required=false, optional=false, multi=false, env="", hide: Natural = 0): IsoDateArg =
     result = new(IsoDateArg)
-    initArg(result, variants, help, defaultVal, choices, helpvar, group, required, optional, multi, env, hide)
+    initArg(result, variants, help, longHelp, defaultVal, choices, helpvar, group, required, optional, multi, env, hide)
 
 method render_choices(arg: IsoDateArg): string = 
     arg.choices.join("|")
@@ -46,19 +46,19 @@ suite "grape":
         let spec = (
             pattern: newStringArg(@["<pattern>"], help="Regular expression pattern to look for"),
             target: newPathArg(@["<file>", "<dir>"], help="File(s) or directory(ies) to search", multi=true),
-            recursive: newCountArg(@["-r", "--recursive"], help="Recurse into subdirectories", group="File Options"),
+            recursive: newFlagArg(@["-r", "--recursive"], help="Recurse into subdirectories", group="File Options"),
             sensitivity: (
-                insensitive: newCountArg(@["-i", "--ignore-case"], help="Case insensitive pattern matching", group="Matching Options"),
-                smartcase: newCountArg(@["-S", "--smart-case"], help="Case insensitive pattern matching for lower case patterns, sensitive otherwise", group="Matching Options"),
-                sensitive: newCountArg(@["-s", "--case-sensitive"], help="Case sensitive pattern matching", group="Matching Options"),
+                insensitive: newFlagArg(@["-i", "--ignore-case"], help="Case insensitive pattern matching", group="Matching Options"),
+                smartcase: newFlagArg(@["-S", "--smart-case"], help="Case insensitive pattern matching for lower case patterns, sensitive otherwise", group="Matching Options"),
+                sensitive: newFlagArg(@["-s", "--case-sensitive"], help="Case sensitive pattern matching", group="Matching Options"),
             ),
-            follow: newCountArg(@["--[no]follow"], help="Follow symlinks", group="File Options"),
+            follow: newFlagArg(@["--[no]follow"], help="Follow symlinks", group="File Options"),
             context: newIntArg(@["-C", "--context"], defaultVal=2, help="Number of lines of context to print", group="Display Options"),
             pager: newStringArg(@["--pager"], env="PAGER", help="Pager to use to display output", group="Display Options"),
             modified: newIsoDateArg(@["-m", "--modified"], defaultVal=DEFAULT_DATE, help="Only review files modified since this date", group="File Options"),
             color: newBoolArg(@["-c", "--color", "--colour"], defaultVal=true, help="Whether to colorise output", group="Display Options"),
-            filename: newCountArg(@["-f/-F", "--with-filename/--no-filename"], help="Print filename match was found in", group="Display Options"),
-            format: newCountArg(@["--[no-]format"], help="Format output", group="Display Options"),
+            filename: newFlagArg(@["-f/-F", "--with-filename/--no-filename"], help="Print filename match was found in", group="Display Options"),
+            format: newFlagArg(@["--[no-]format"], help="Format output", group="Display Options"),
             version: newMessageArg(@["-v", "--version"], "0.1.0", help="Prints version", group="General Options"),
             help: newHelpArg(group="General Options"),
         )

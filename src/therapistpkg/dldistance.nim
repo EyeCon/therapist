@@ -6,7 +6,7 @@ import unicode
 
 type Matrix = seq[seq[int]]
 
-proc `$`(matrix: Matrix): string =
+proc `$`*(matrix: Matrix): string =
     for row in matrix:
         result &= row.join(", ") & "\n"
 

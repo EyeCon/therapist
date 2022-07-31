@@ -7,6 +7,8 @@ suite "Nimplayer":
         let playspec = (
             volume: newCountArg(@["-v", "--volume"], help="Volume"),
             start: newIntArg(@["-s", "--start"], help="Start after s seconds"),
+            # Note this would naturally be a newFileArg, but then testing would be harder since
+            # any files referred to would have to exist
             filename: newStringArg(@["<filename>"], help="Filename to play"),
         )
         let spec = (
@@ -24,11 +26,11 @@ Usage:
   nimplayer -h|--help
 
 Commands:
-  play           Play a file
+  play              Play a file
 
 Options:
-  -v, --verbose  Verbosity
-  -h, --help     Show help message""".strip()
+  -v, --verbose...  Verbosity
+  -h, --help        Show help message""".strip()
         check(message.get==expected)
 
     test "Switch to the subcommand parser as soon as the command is seen":

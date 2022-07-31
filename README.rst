@@ -12,11 +12,16 @@ arguments to be parsed. Each value in the tuple must be set to a ``<Type>Arg`` o
 specifies how that argument will appear, what values it can take and provides a help string for the user.
 
 Features:
+---------
+
 - Type-safe - Therapist will check that supplied values are of the expected type and makes defining your own types easy
+- Approachable - Therapist provides only one macro which you may never need to use
 - Powerful - Therapist has patterns for both single-file scripts and scripts with multiple commands split between files (e.g. ``git``)
 - Flexible - Supports defaults, choices, using default values from environment variables, options that are not shown in help messages, required options and optional arguments
-- Batteries-included - Generates beautiful help messages, though you are free to roll your own (and fish-shell completions)
+- Batteries-included - Generates beautiful (short and long-form) help messages, though you are free to roll your own (also provides fish-shell completions)
+- Conventional - Follows standard conventions:  ``--yes/no`` or ``--[no-]format`` as variants imply what you would expect
 - Helpful - Intelligent suggestions ``git blme`` -> did you mean ``git blame``?
+- Tested - Therapist has lots of tests, many of which function as usage examples
 
 A simple 'Hello world' example:
 
@@ -35,7 +40,7 @@ A simple 'Hello world' example:
         # --help will cause a help message to be printed
         help: newHelpArg(@["-h", "--help"], help="Show help message"),
     )
-    # `args` and `command` would normally be picked up from the commandline
+    # `args` and `command` are included in tests but would normally be picked up from the commandline
     spec.parseOrQuit(prolog="Greeter", args="-t 2 World", command="hello")
     # If a help message or version was requested or a parse error generated it would be printed
     # and then the parser would call `quit`. Getting past `parseOrQuit` implies we're ok.
@@ -105,9 +110,8 @@ The constructor for each ``<Type>Arg`` type takes the form:
 - If ``--`` is seen, the remainder of the arguments will be taken to be positional arguments, even
   if they look like options or commands
 - A ``defaultVal`` value may be provided in case the argument is not seen. Additionally an ``env`` 
-  key can be provided (e.g. `env=USER`). If ``env`` is set to a key that is set in the environment, 
-  the default value will be set to that value
-  e.g. ``$USER``).
+  key can be provided (e.g. ``env=USER``). If ``env`` is set to a key that is set in the environment,
+  the default value will be set to that value e.g. ``$USER``).
 - Arguments are expected to be seen at most once, unless ``multi=true``
 - If there are only a set number of acceptable values for an argument, they can be listed in
   ``choices``
@@ -118,7 +122,7 @@ The constructor for each ``<Type>Arg`` type takes the form:
   groups. Groups and arguments will be shown the order that they are appear in the tuple definition.
 - If ``helpLevel`` is set to a value ``x`` greater than 0 the argument will only be shown in a help 
   message if the ``HelpArg`` is defined ``showLevel`` set to a value greater than or equal to ``x``
-- If you want to define a new ``ValueArg`` type ``defineArg`` is a template that will fill in the
+- If you want to define a new ``ValueArg`` type ``defineArg`` is a macro that will fill in the
   boilerplate for you
 
 Argument types provided out of the box
@@ -240,7 +244,6 @@ Possible features therapist does not have
 
 In *rough* order of likelihood of being added:
 
-- Options for help format from columns (current) to paragraphs
 - Ints and floats being limited to a range rather than a set of discrete values
 - Support for ``+w`` and ``-w`` to equate to ``w=true`` and ``w=false``
 - Generation of ``bash`` / ``powershell`` completion scripts

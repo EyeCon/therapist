@@ -1,0 +1,20 @@
+ripgrep 13.0.0 Andrew Gallant <jamslam@gmail.com>
+
+ripgrep (rg) recursively searches the current directory for a regex pattern. By
+default, ripgrep will respect gitignore rules and automatically skip hidden
+files/directories and binary files.
+
+Use -h for short descriptions and --help for more details.
+
+Project home page: https://github.com/BurntSushi/ripgrep
+
+Usage:
+  rg <pattern> [<path>]...
+
+Arguments:
+  <pattern>                  A regular expression used for searching.
+  <path>                     A file or directory to search.
+
+Options:
+  -A, --after-context=<NUM>  Show NUM lines after each match.
+  --colors=<COLOR_SPEC>...   Configure color settings and styles.

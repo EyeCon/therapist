@@ -34,7 +34,7 @@ let OPTION_VARIANT_FORMAT = peg"""
         longOption <- prefix prefix {\w (\w / prefix)+}
     """
 
-# Captures --[no]option
+# Captures --[no]option and --[no-]option 
 let OPTION_VARIANT_NO_FORMAT = peg"""
         option <- ^ longOption $
         prefix <- '\-'
@@ -93,10 +93,15 @@ type
         akOptional,
         akCommand
 
+    HelpStyle* = enum
+        hsColumns, ## Variants and help text shown on the same line
+        hsParagraphs ## Variants and help text shown on different lines
+
     Arg* = ref object of RootObj
         ## Base class for arguments
         variants: seq[string]
         help: string ## The help string for the argument
+        longHelp: string ## Longer version of help for the argument
         count*: int ## How many times the argument was seen
         required: bool ## Set to true to make an option required
         optional: bool ## Set to true to make a positional argument optional
@@ -144,6 +149,7 @@ type
     HelpArg* = ref object of CountArg
         ## If this argument is provided, a `MessageError` containing a help message will be raised
         showLevel: Natural
+        helpStyle: HelpStyle
     MessageArg* = ref object of CountArg
         ## If this argument is provided, a `MessageError` containing a message will be raised
         message: string
@@ -157,6 +163,7 @@ type
     HelpCommandArg* = ref object of CommandArg
         ## ``HelpCommandArg`` allows you to create a command that prints help
         showLevel: Natural
+        helpStyle: HelpStyle
     MessageCommandArg* = ref object of CommandArg
         ## ``MessageCommandArg`` allows you to create a command that prints a message
         message: string
@@ -210,7 +217,7 @@ method parse*(arg: Arg, value: string, variant: string) {.base.} =
     ## value cannot be parsed, a `ParseError` is raised with a user-friendly explanation
     raise newException(Defect, &"Parse not implemented for {$type(arg)}")
 
-proc initArg*[A, T](arg: var A, variants: seq[string], help: string, defaultVal: T, choices: seq[T], helpVar="", group="", 
+proc initArg*[A, T](arg: var A, variants: seq[string], help: string, longHelp: string, defaultVal: T, choices: seq[T], helpVar="", group="", 
                         required: bool, optional: bool, multi: bool, env: string, helpLevel: Natural) =
     ## If you define your own `ValueArg` type, you can call this function to initialise it. It copies the parameter values to the `ValueArg` object
     ## and initialises the `value` field with either the value from the `env` environment key (if supplied and if the key is present in the environment)
@@ -222,6 +229,7 @@ proc initArg*[A, T](arg: var A, variants: seq[string], help: string, defaultVal:
     arg.choices = choices
     arg.defaultVal = defaultVal
     arg.help = help
+    arg.longHelp = if longHelp!="": longHelp else: help
     arg.group = group
     arg.required = required
     arg.optional = optional
@@ -243,14 +251,15 @@ proc initArg*[A, T](arg: var A, variants: seq[string], help: string, defaultVal:
     if required and optional:
         raise newException(SpecificationError, "Arguments can be required or optional not both")
 
-proc initMessageArg*[MA](arg: var MA, variants: seq[string], help: string, group="", helpLevel: Natural = 0) =
+proc initMessageArg*[MA](arg: var MA, variants: seq[string], help: string, longHelp: string, group="", helpLevel: Natural = 0) =
     ## TODO: Rename me
     arg.variants = variants
     arg.help = help
+    arg.longHelp = if longHelp!="": longHelp else: help
     arg.group = group
     arg.helpLevel = helpLevel
 
-proc newStringArg*(variants: seq[string], help: string, defaultVal = "", choices=newSeq[string](), helpvar="", 
+proc newStringArg*(variants: seq[string], help: string, longHelp = "", defaultVal = "", choices=newSeq[string](), helpvar="", 
                     group="", required=false, optional=false, multi=false, env="", helpLevel: Natural = 0): StringArg =
     ## Creates a new Arg.
     ##
@@ -275,6 +284,7 @@ proc newStringArg*(variants: seq[string], help: string, defaultVal = "", choices
     ##     - Arguments take the form `<value>` (default to `required` - override wiith `optional=true`)
     ##     - Commands take the form `command`
     ## - `help` is a short form help message to explain what the argument does
+    ## - `longHelp` may be used to provide a longer version of the help message to be used with the paragraph help style
     ## - `defaultVal` is a default value
     ## - `choices` is a set of allowed values for the argument
     ## - `helpvar` is a dummy variable name shown to the user in the help message for`ValueArg` (i.e. `--option <helpvar>`).
@@ -295,20 +305,20 @@ proc newStringArg*(variants: seq[string], help: string, defaultVal = "", choices
     ##
     ## Since: 0.1.0
     result = new(StringArg)
-    initArg(result, variants, help, defaultVal, choices, helpvar, group, required, optional, multi, env, helpLevel)
+    initArg(result, variants, help, longHelp, defaultVal, choices, helpvar, group, required, optional, multi, env, helpLevel)
 
-proc newStringArg*(variants: string, help: string, defaultVal = "", choices=newSeq[string](), helpvar="", 
+proc newStringArg*(variants: string, help: string, longHelp = "", defaultVal = "", choices=newSeq[string](), helpvar="", 
                     group="", required=false, optional=false, multi=false, env="", helpLevel: Natural = 0): StringArg =
     ## Convenience method where `variants` are provided as a comma-separated string
     ## 
     ## Since: 0.2.0
-    newStringArg(variants.split(COMMA), help, defaultVal, choices, helpvar, group, required, optional, multi, env, helpLevel)
+    newStringArg(variants.split(COMMA), help, longHelp, defaultVal, choices, helpvar, group, required, optional, multi, env, helpLevel)
 
 func initPromptArg(promptArg: PromptArg, prompt: string, secret: bool) =
     promptArg.prompt = prompt
     promptArg.secret = secret
 
-proc newStringPromptArg*(variants: seq[string], help: string, defaultVal = "", choices=newSeq[string](), helpvar="",
+proc newStringPromptArg*(variants: seq[string], help: string, longHelp = "", defaultVal = "", choices=newSeq[string](), helpvar="",
                     group="", required=false, optional=false, multi=false, prompt: string, secret: bool, env="", helpLevel: Natural = 0): StringPromptArg =
     ## Experimental: Creates an argument whose value is read from a prompt rather than the commandline (e.g. a password)
     ##  - `prompt` - prompt to display to the user to request input
@@ -316,10 +326,10 @@ proc newStringPromptArg*(variants: seq[string], help: string, defaultVal = "", c
     ## 
     ## Since: 0.1.0
     result = new(StringPromptArg)
-    initArg(result, variants, help, defaultVal, choices, helpvar, group, required, optional, multi, env, helpLevel)
+    initArg(result, variants, help, longHelp, defaultVal, choices, helpvar, group, required, optional, multi, env, helpLevel)
     initPromptArg(PromptArg(result), prompt, secret)
 
-proc newFloatArg*(variants: seq[string], help: string, defaultVal = 0.0, choices=newSeq[float](), helpvar="", 
+proc newFloatArg*(variants: seq[string], help: string, longHelp = "", defaultVal = 0.0, choices=newSeq[float](), helpvar="", 
                     group="", required=false, optional=false, multi=false, env="", helpLevel: Natural = 0): FloatArg =
     ## A `FloatArg` takes a float value
     ##
@@ -337,17 +347,17 @@ proc newFloatArg*(variants: seq[string], help: string, defaultVal = 0.0, choices
     ##      doAssert spec.number.value == 0.25
     ## Since: 0.1.0
     result = new(FloatArg)
-    initArg(result, variants, help, defaultVal, choices, helpvar, group, required, optional, multi, env, helpLevel)
+    initArg(result, variants, help, longHelp, defaultVal, choices, helpvar, group, required, optional, multi, env, helpLevel)
 
-proc newFloatArg*(variants: string, help: string, defaultVal = 0.0, choices=newSeq[float](), helpvar="", group="", 
+proc newFloatArg*(variants: string, help: string, longHelp = "", defaultVal = 0.0, choices=newSeq[float](), helpvar="", group="", 
                     required=false, optional=false, multi=false, env="", helpLevel: Natural = 0): FloatArg =
     ## Convenience method where `variants` are provided as a comma-separated string
     ## 
     ## Since: 0.2.0
-    newFloatArg(variants.split(COMMA), help, defaultVal, choices, helpvar, group, required, optional, multi, env, helpLevel)
+    newFloatArg(variants.split(COMMA), help, longHelp, defaultVal, choices, helpvar, group, required, optional, multi, env, helpLevel)
 
 
-proc newIntArg*(variants: seq[string], help: string, defaultVal = 0, choices=newSeq[int](), helpvar="", group="", 
+proc newIntArg*(variants: seq[string], help: string, longHelp = "", defaultVal = 0, choices=newSeq[int](), helpvar="", group="", 
                     required=false, optional=false, multi=false, env="", helpLevel: Natural = 0): IntArg =
     ## An `IntArg` takes an integer value
     ##
@@ -366,43 +376,69 @@ proc newIntArg*(variants: seq[string], help: string, defaultVal = 0, choices=new
     ## 
     ## Since: 0.1.0
     result = new(IntArg)
-    initArg(result, variants, help, defaultVal, choices, helpvar, group, required, optional, multi, env, helpLevel)
+    initArg(result, variants, help, longHelp, defaultVal, choices, helpvar, group, required, optional, multi, env, helpLevel)
 
-proc newIntArg*(variants: string, help: string, defaultVal = 0, choices=newSeq[int](), helpvar="", group="", 
+proc newIntArg*(variants: string, help: string, longHelp = "", defaultVal = 0, choices=newSeq[int](), helpvar="", group="", 
                     required=false, optional=false, multi=false, env="", helpLevel: Natural = 0): IntArg =
     ## Convenience method where `variants` are provided as a comma-separated string
     ## 
     ## Since: 0.2.0
-    newIntArg(variants.split(COMMA), help, defaultVal, choices, helpvar, group, required, optional, multi, env, helpLevel)
+    newIntArg(variants.split(COMMA), help, longHelp, defaultVal, choices, helpvar, group, required, optional, multi, env, helpLevel)
 
-proc newCountArg*(variants: seq[string], help: string, defaultVal = 0, choices=newSeq[int](), group="", 
+proc newCountArg*(variants: seq[string], help: string, longHelp = "", defaultVal = 0, choices=newSeq[int](), group="", 
                     required=false, optional=false, multi=true, env="", helpLevel: Natural = 0): CountArg =
-    ## A `CountArg` counts how many times it has been seen
-    ##
+    ## A ``CountArg`` counts how many times it has been seen. When using a ``CountArg``, alternate forms of ``variant`` are valid:
+    ## - ``--[no]option`` or ``--[no-]option`` imply that ``--option`` counts up and ``--nooption`` or ``--no-option`` count down
+    ## - ``-y/-n`` or ``--yes/--no`` imply that ``-y`` or ``--yes`` count up and ``-n`` or ``--no`` count down.
+    ## Except in the case when an equal number of count ups and count downs have been seen, ``arg.seen`` should report seen 
+    ## whether or not the current count is greater than or less than zero.
+    ## 
+    ## If you only expect the argument to be used once, you can use ``newFlagArg`` to make this clear, which is 
+    ## equivalent to calling ``newCountArg`` with ``multi=false``
+    ## 
     ## .. code-block:: nim
     ##      :test:
     ##
     ##      import options
     ##
     ##      let spec = (
-    ##          verbosity: newCountArg(@["-v", "--verbosity"], help="Verbosity")
+    ##          verbosity: newCountArg(@["-v", "--verbosity"], help="Verbosity"),
+    ##          assume: newFlagArg("-y/-n, --yes/--no", help="Assume yes (or no) at any prompts"),
+    ##          unicode: newFlagArg("--[no-]unicode", help="Check input is valid unicode (or not)")
     ##      )
-    ##      let (success, message) = parseOrMessage(spec, args="-v -v -v", command="hello")
+    ##      let (success, message) = parseOrMessage(spec, args="-v -v -v -n --unicode", command="hello")
     ##      doAssert success and message.isNone
+    ##      doAssert spec.verbosity.seen
     ##      doAssert spec.verbosity.count == 3
+    ##      doAssert spec.assume.seen
+    ##      doAssert spec.assume.count == -1
+    ##      doAssert spec.unicode.seen
+    ##      doAssert spec.unicode.count == 1
     ## 
     ## Since: 0.1.0
     result = new(CountArg)
-    initArg(result, variants, help, defaultVal, choices, helpvar="", group, required, optional, multi, env, helpLevel)
+    initArg(result, variants, help, longHelp, defaultVal, choices, helpvar="", group, required, optional, multi, env, helpLevel)
 
-proc newCountArg*(variants: string, help: string, defaultVal = 0, choices=newSeq[int](), group="", 
+proc newCountArg*(variants: string, help: string, longHelp = "", defaultVal = 0, choices=newSeq[int](), group="", 
                     required=false, optional=false, multi=true, env="", helpLevel: Natural = 0): CountArg =
     ## Convenience method where `variants` are provided as a comma-separated string
     ## 
     ## Since: 0.2.0
-    newCountArg(variants.split(COMMA), help, defaultVal, choices, group, required, optional, multi, env, helpLevel)
+    newCountArg(variants.split(COMMA), help, longHelp, defaultVal, choices, group, required, optional, multi, env, helpLevel)
 
-proc newHelpArg*(variants= @["-h", "--help"], help="Show help message", group="", helpLevel, showLevel: Natural = 0): HelpArg =
+proc newFlagArg*(variants: seq[string], help: string, longHelp = "", defaultVal = 0, choices=newSeq[int](), group="", 
+                    required=false, optional=false, multi=false, env="", helpLevel: Natural = 0): CountArg =
+    ## Alias for ``newCountArg`` where ``multi=false`` i.e. intended to capture if a particular option
+    ## is present or not (e.g. the ``-r`` in ``cp -r``).
+    ## 
+    ## Since: 0.3.0
+    newCountArg(variants, help, longHelp = "", defaultVal, choices, group, required, optional, multi, env, helpLevel)
+
+proc newFlagArg*(variants: string, help: string, longHelp = "", defaultVal = 0, choices=newSeq[int](), group="", 
+                    required=false, optional=false, multi=false, env="", helpLevel: Natural = 0): CountArg =
+    newCountArg(variants, help, longHelp, defaultVal, choices, group, required, optional, multi, env, helpLevel)
+
+proc newHelpArg*(variants= @["-h", "--help"], help="Show help message", longHelp = "", group="", helpLevel, showLevel: Natural = 0, helpStyle = HelpStyle.hsColumns): HelpArg =
     ## If a help arg is seen, a help message will be shown.
     ##
     ## `showLevel` is compared to the `helpLevel` of each arg. If the arg's
@@ -442,36 +478,38 @@ proc newHelpArg*(variants= @["-h", "--help"], help="Show help message", group=""
     ## 
     ## Since: 0.1.0
     result = new(HelpArg)
-    result.initMessageArg(variants, help, group, helpLevel)
+    result.initMessageArg(variants, help, longHelp, group, helpLevel)
     result.showLevel = showLevel
+    result.helpStyle = helpStyle
 
-proc newHelpArg*(variants: string, help="Show help message", group="", helpLevel, showLevel: Natural = 0): HelpArg =
+proc newHelpArg*(variants: string, help="Show help message", longHelp = "", group="", helpLevel, showLevel: Natural = 0, helpStyle = HelpStyle.hsColumns): HelpArg =
     ## Convenience method where `variants` are provided as a comma-separated string
     ## 
     ## Since: 0.2.0
-    newHelpArg(variants.split(COMMA), help, group, helpLevel, showLevel)
+    newHelpArg(variants.split(COMMA), help, longHelp, group, helpLevel, showLevel, helpStyle)
 
-proc newHelpCommandArg*(variants= @["help"], help="Show help message", group="", helpLevel, showLevel: Natural = 0): HelpCommandArg =
+proc newHelpCommandArg*(variants= @["help"], help="Show help message", longHelp = "", group="", helpLevel, showLevel: Natural = 0, helpStyle = HelpStyle.hsColumns): HelpCommandArg =
     ## Equivalent of `newHelpArg` where help is a command not an option i.e. `> hg help` not `> hg --help`
     ##
     ## Since: 0.2.0
     result = new(HelpCommandArg)
-    result.initMessageArg(variants, help, group, helpLevel)
+    result.initMessageArg(variants, help, longHelp, group, helpLevel)
     result.specification = newSpecification((help: newHelpArg()), "", "")
     result.showLevel = showLevel
+    result.helpStyle = helpStyle
 
-proc newHelpCommandArg*(variants: string, help="Show help message", group="", helpLevel, showLevel: Natural = 0): HelpCommandArg =
-    newHelpCommandArg(variants.split(COMMA), help, group, helpLevel, showLevel)
+proc newHelpCommandArg*(variants: string, help="Show help message", longHelp = "", group="", helpLevel, showLevel: Natural = 0, helpStyle = HelpStyle.hsColumns): HelpCommandArg =
+    newHelpCommandArg(variants.split(COMMA), help, longHelp, group, helpLevel, showLevel, helpStyle)
 
-proc newFishCompletionCommandArg*(variants: seq[string], help: string, group="", helpLevel=0, showLevel: Natural = 0): FishCompletionCommandArg =
+proc newFishCompletionCommandArg*(variants: seq[string], help: string, longHelp = "", group="", helpLevel=0, showLevel: Natural = 0): FishCompletionCommandArg =
     result = new(FishCompletionCommandArg)
-    result.initMessageArg(variants, help, group, helpLevel)
+    result.initMessageArg(variants, help, longHelp, group, helpLevel)
     result.showLevel = showLevel
 
-proc newFishCompletionCommandArg*(variants: string, help: string, group="", helpLevel=0, showLevel: Natural = 0): FishCompletionCommandArg =
-    newFishCompletionCommandArg(variants.split(COMMA), help, group, helpLevel, showLevel)
+proc newFishCompletionCommandArg*(variants: string, help: string, longHelp = "", group="", helpLevel=0, showLevel: Natural = 0): FishCompletionCommandArg =
+    newFishCompletionCommandArg(variants.split(COMMA), help, longHelp, group, helpLevel, showLevel)
 
-proc newMessageArg*(variants: seq[string], message: string, help: string, group="", helpLevel: Natural = 0): MessageArg =
+proc newMessageArg*(variants: seq[string], message: string, help: string, longHelp = "", group="", helpLevel: Natural = 0): MessageArg =
     ## If a `MessageArg` is seen, a message will be shown. Might be used to display a version
     ## number (as per example below) or to display a hand-rolled help message.
     ##
@@ -488,49 +526,49 @@ proc newMessageArg*(variants: seq[string], message: string, help: string, group=
     ## 
     ## Since: 0.1.0
     result = new(MessageArg)
-    result.initMessageArg(variants, help, group, helpLevel)
+    result.initMessageArg(variants, help, longHelp, group, helpLevel)
     result.message = message
 
-proc newMessageArg*(variants: string, message: string, help: string, group="", helpLevel: Natural = 0): MessageArg =
+proc newMessageArg*(variants: string, message: string, help: string, longHelp = "", group="", helpLevel: Natural = 0): MessageArg =
     ## Convenience method where `variants` are provided as a comma-separated string
     ## 
     ## Since: 0.2.0
-    newMessageArg(variants.split(COMMA), message, help, group, helpLevel)
+    newMessageArg(variants.split(COMMA), message, help, longHelp, group, helpLevel)
 
-proc newMessageCommandArg*(variants: seq[string], message: string, help="Show help message", group="", helpLevel: Natural = 0): MessageCommandArg =
+proc newMessageCommandArg*(variants: seq[string], message: string, help="Show help message", longHelp = "", group="", helpLevel: Natural = 0): MessageCommandArg =
     ## Equivalent of `newMessageArg` where help is a command not an option i.e. `> hg version` not `> hg --version`
     ##
     ## Since: 0.2.0
     result = new(MessageCommandArg)
-    result.initMessageArg(variants, help, group, helpLevel)
+    result.initMessageArg(variants, help, longHelp, group, helpLevel)
     result.specification = newSpecification((help: newHelpArg()), "", "")
     result.message = message
 
-proc newMessageCommandArg*(variants: seq, message: string, help="Show help message", group="", helpLevel: Natural = 0): MessageCommandArg =
+proc newMessageCommandArg*(variants: seq, message: string, help="Show help message", longHelp = "", group="", helpLevel: Natural = 0): MessageCommandArg =
     newMessageCommandArg(variants.split(COMMA), message, help, group, helpLevel)
 
-proc newFishCompletionArg*(variants: seq, help="Show a completion script for fish shell", group="", helpLevel: Natural = 0): FishCompletionArg =
+proc newFishCompletionArg*(variants: seq, help="Show a completion script for fish shell", longHelp = "", group="", helpLevel: Natural = 0): FishCompletionArg =
     result = new(FishCompletionArg)
-    result.initMessageArg(variants, help, group, helpLevel)
+    result.initMessageArg(variants, help, longHelp, group, helpLevel)
 
-proc newFishCompletionArg*(variants: string, help="Show a completion script for fish shell", group="", helpLevel: Natural = 0): FishCompletionArg =
-    newFishCompletionArg(variants.split(COMMA), help, group, helpLevel)
+proc newFishCompletionArg*(variants: string, help="Show a completion script for fish shell", longHelp = "", group="", helpLevel: Natural = 0): FishCompletionArg =
+    newFishCompletionArg(variants.split(COMMA), help, longHelp, group, helpLevel)
 
-proc newCommandArg*[S](variants: seq[string], specification: S, help="", prolog="", epilog="", group="", 
+proc newCommandArg*[S](variants: seq[string], specification: S, help="", longHelp = "", prolog="", epilog="", group="", 
                         helpLevel: Natural = 0, handle: proc(spec: S) = nil): CommandArg =
     ## Version of `newCommandArg` to be used when there is no need to capture options from the main parser
     result = new(CommandArg)
-    result.initMessageArg(variants, help, group, helpLevel)
+    result.initMessageArg(variants, help, longHelp, group, helpLevel)
     result.specification = newSpecification(specification, prolog, epilog)
     if not isnil(handle):
         result.handler = () => handle(specification)
 
-proc newCommandArg*[S](variants: string, specification: S, help="", prolog="", epilog="", group="", 
+proc newCommandArg*[S](variants: string, specification: S, help="", longHelp = "", prolog="", epilog="", group="", 
                         helpLevel: Natural = 0, handle: proc(spec: S) = nil): CommandArg =
     ## Convenience version of `newCommandArg` where variants are provided as a string
-    newCommandArg(variants.split(COMMA), specification, help, prolog, epilog, group, helpLevel, handle)
+    newCommandArg(variants.split(COMMA), specification, help, longHelp, prolog, epilog, group, helpLevel, handle)
 
-proc newCommandArg*[S, O](variants: seq[string], specification: S, help="", prolog="", epilog="", group="", 
+proc newCommandArg*[S, O](variants: seq[string], specification: S, help="", longHelp = "", prolog="", epilog="", group="", 
                         helpLevel: Natural = 0, handle: proc(spec: S, opts: O), options: O): CommandArg =
     ## A `CommandArg` represents a command which will then use its own parser to parse the remainder
     ## of the arguments. This is how you would implement a multi-command tool like mercurial or git.
@@ -663,12 +701,12 @@ proc newCommandArg*[S, O](variants: seq[string], specification: S, help="", prol
     ##  - 0.1.0: Initial implementation
     ##  - 0.2.0: `handle` arg and multi-file support
     let handler = (commandSpec: S) => handle(specification, options)
-    newCommandArg(variants, specification, help, prolog, epilog, group, helpLevel, handler)
+    newCommandArg(variants, specification, help, longHelp, prolog, epilog, group, helpLevel, handler)
 
-proc newCommandArg*[S, O](variants: string, specification: S, help="", prolog="", epilog="", group="", 
+proc newCommandArg*[S, O](variants: string, specification: S, help="", longHelp = "", prolog="", epilog="", group="", 
                         helpLevel: Natural = 0, handle: proc(spec: S, opts: O), options: O): CommandArg =
     ## Version of newCommandarg where variants is provided as a string
-    newCommandArg(variants.split(COMMA), specification, help, prolog, epilog, group, helpLevel, handle, options)
+    newCommandArg(variants.split(COMMA), specification, help, longHelp, prolog, epilog, group, helpLevel, handle, options)
 
 proc newAlternatives(alternatives: tuple): Alternatives =
     result = new(Alternatives)
@@ -949,16 +987,16 @@ macro defineArg*[T](TypeName: untyped, cons: untyped, name: string, ArgType: typ
                 values*: seq[`ArgType`]
                 choices: seq[`ArgType`]
 
-        proc `cons`*(variants: seq[string], help: string, defaultVal = `defaultT`, choices = newSeq[`ArgType`](), helpvar="",
+        proc `cons`*(variants: seq[string], help: string, longHelp = "", defaultVal = `defaultT`, choices = newSeq[`ArgType`](), helpvar="",
                         group="", required=false, optional=false, multi=false, env="", helpLevel: Natural = 0): `TypeName` {.inject.} =
             `comment`
             result = new(`TypeName`)
-            result.initArg(variants, help, defaultVal, choices, helpvar, group, required, optional, multi, env, helpLevel)
+            result.initArg(variants, help, longHelp, defaultVal, choices, helpvar, group, required, optional, multi, env, helpLevel)
 
-        proc `cons`*(variants: string, help: string, defaultVal= `defaultT`, choices = newSeq[`ArgType`](), helpvar="", group="",
+        proc `cons`*(variants: string, help: string, longHelp = "", defaultVal= `defaultT`, choices = newSeq[`ArgType`](), helpvar="", group="",
                         required=false, optional=false, multi=false, env="", helpLevel: Natural = 0): `TypeName` {.inject.} =
             `comment`
-            `cons`(variants.split(COMMA), help, defaultVal, choices, helpvar, group, required, optional, multi, env, helpLevel)
+            `cons`(variants.split(COMMA), help, longHelp, defaultVal, choices, helpvar, group, required, optional, multi, env, helpLevel)
 
         method render_default(arg: `TypeName`): string =
             if arg.defaultVal!=default(typedesc(`ArgType`)): "[default: " & $arg.defaultVal & "]" else: ""
@@ -1006,7 +1044,7 @@ proc parseURL(value: string): Uri =
 
 defineArg[Uri](URLArg, newURLArg, "URL", Uri, parseURL, parseUri(""), "An argument where the supplied value must be a URI")
 
-proc render_help(spec: Specification, command: string, showLevel: Natural = 0): string =
+proc render_help(spec: Specification, command: string, showLevel: Natural = 0, helpStyle = HelpStyle.hsColumns): string =
     var lines = @["Usage:"]
     # Fetch a list of usage examples
     spec.render_usage(command, lines, showLevel)
@@ -1035,10 +1073,14 @@ proc render_help(spec: Specification, command: string, showLevel: Natural = 0): 
         if option.helpLevel > showLevel:
             continue
         let helpVar = if len(option.helpVar)>0: "=" & option.helpVar else: ""
-        variant_width = max(variant_width, len(option.variants.join(", ") & helpVar))
+        let multi = if option.multi: "..." else: ""
+        variant_width = max(variant_width, len(option.variants.join(", ") & helpVar & multi))
 
     let help_indent = INDENT_WIDTH + variant_width + INDENT_WIDTH
     let help_width = max_width - help_indent
+
+    let help_para_indent = INDENT_WIDTH * 2
+    let help_para_width = max_width - help_para_indent
 
     lines = newSeq[string]()
     for group, args in spec.groups.pairs:
@@ -1048,20 +1090,39 @@ proc render_help(spec: Specification, command: string, showLevel: Natural = 0): 
         for arg in args:
             if arg.helpLevel > showLevel:
                 continue
-            case arg.kind:
-                of akCommand:
-                    let help = rewrap(arg.help, help_width).indent(help_indent).strip()
-                    argsLines.add(INDENT & alignLeft(arg.variants.join(", "), variant_width) & INDENT & help)
-                of akPositional:
-                    let defaultHelp = if arg.optional: " " & arg.render_default() else: ""
-                    let help = rewrap(arg.help & defaultHelp, help_width).indent(help_indent).strip()
-                    argsLines.add(INDENT & alignLeft(arg.variants.join(", "), variant_width) & INDENT & help)
-                of akOptional:
-                    let defaultHelp = if not arg.required: " " & arg.render_default() else: ""
-                    let help = rewrap(arg.help & defaultHelp, help_width).indent(help_indent).strip()
-                    let helpVar = if len(arg.helpVar)>0: "=" & arg.helpVar else: ""
-                    argsLines.add(INDENT & alignLeft(arg.variants.join(", ") & helpVar, variant_width) & INDENT & help)
+            case helpStyle:
+                of HelpStyle.hsColumns:
+                    case arg.kind:
+                        of akCommand:
+                            let help = rewrap(arg.help, help_width).indent(help_indent).strip()
+                            argsLines.add(INDENT & alignLeft(arg.variants.join(", "), variant_width) & INDENT & help)
+                        of akPositional:
+                            let defaultHelp = if arg.optional: " " & arg.render_default() else: ""
+                            let help = rewrap(arg.help & defaultHelp, help_width).indent(help_indent).strip()
+                            argsLines.add(INDENT & alignLeft(arg.variants.join(", "), variant_width) & INDENT & help)
+                        of akOptional:
+                            let defaultHelp = if not arg.required: " " & arg.render_default() else: ""
+                            let help = rewrap(arg.help & defaultHelp, help_width).indent(help_indent).strip()
+                            let helpVar = if len(arg.helpVar)>0: "=" & arg.helpVar else: ""
+                            let multi = if arg.multi: "..." else: ""
+                            argsLines.add(INDENT & alignLeft(arg.variants.join(", ") & helpVar & multi, variant_width) & INDENT & help)
+                of HelpStyle.hsParagraphs:
+                    argsLines.add("")
+                    case arg.kind:
+                        of akCommand:
+                            argsLines.add(INDENT & arg.variants.join(", "))
+                            argsLines.add(rewrap(arg.longHelp, help_para_width).indent(help_para_indent))
+                        of akPositional:
+                            argsLines.add(INDENT & arg.variants.join(", "))
+                            argsLines.add(rewrap(arg.longHelp, help_para_width).indent(help_para_indent))
+                        of akOptional:
+                            let helpVar = if len(arg.helpVar)>0: "=" & arg.helpVar else: ""
+                            let multi = if arg.multi: "..." else: ""
+                            argsLines.add(INDENT & arg.variants.join(", ") & helpVar & multi)
+                            argsLines.add(rewrap(arg.longHelp, help_para_width).indent(help_para_indent))
+
         if argsLines.len > 0:
+            # Only include the group if there are some lines in it
             lines.add(&"\n{group}:")
             lines.add(argsLines)
 
@@ -1144,12 +1205,12 @@ method register(arg: MessageCommandArg, variant: string, command: string, spec: 
 method register(arg: HelpArg, variant: string, command: string, spec: Specification) =
     ## This will cause a `HelpError` to be passed back up the chain, telling the parser to render a help message
     procCall Arg(arg).register(variant, command, spec)
-    raise newException(MessageError, spec.render_help(command, arg.showLevel))
+    raise newException(MessageError, spec.render_help(command, arg.showLevel, arg.helpStyle))
 
 method register(arg: HelpCommandArg, variant: string, command: string, spec: Specification) =
     ## This will cause a `HelpError` to be passed back up the chain, telling the parser to render a help message
     procCall Arg(arg).register(variant, command, spec)
-    raise newException(MessageError, spec.render_help(command, arg.showLevel))
+    raise newException(MessageError, spec.render_help(command, arg.showLevel, arg.helpStyle))
 
 method register(arg: FishCompletionArg, variant: string, command: string, spec: Specification) =
     ## This will cause a `HelpError` to be passed back up the chain, telling the parser to render a fish completion message
@@ -1381,7 +1442,7 @@ proc parseCopy*[S: tuple](specification: S, prolog="", epilog="", args: string, 
     ## Since: 0.2.0
     parseCopy(specification, prolog, epilog, parseCmdLine(args), command)
 
-proc parseOrHelp*(spec: tuple, prolog = "", epilog = "", args: seq[string] = commandLineParams(), command: string = extractFilename(getAppFilename())) =
+proc parseOrHelp*(spec: tuple, prolog="", epilog="", args: seq[string] = commandLineParams(), command: string = extractFilename(getAppFilename())) =
   ## Attempts to parse the input. If the parse fails, shows the user the error
   ## message and help message, then quits. If the user has asked for a message
   ## (e.g. help), shows the message and quits.
@@ -1396,7 +1457,7 @@ proc parseOrHelp*(spec: tuple, prolog = "", epilog = "", args: seq[string] = com
     let message = helpSpec.renderHelp(e.msg & "\n\n" & prolog, epilog, command)
     quit(message, QuitFailure)
 
-proc parseOrHelp*(spec: tuple, prolog = "", epilog = "", args: string, command: string = extractFilename(getAppFileName())) =
+proc parseOrHelp*(spec: tuple, prolog="", epilog="", args: string, command: string = extractFilename(getAppFileName())) =
   ## Convenience version of ``parseOrHelp`` that takes a string for ``args``.
   ## 
   ## Since: 0.2.0
@@ -1450,7 +1511,7 @@ Options:
         setup:
             let spec = (
                 version: newMessageArg(@["--version"], "0.1.0", help="Prints version. Hopefully will be in semver format, but then does that really make sense for a copy command?"),
-                recursive: newCountArg(@["-r", "--recursive"], help="Recurse into subdirectories"),
+                recursive: newCountArg(@["-r", "--recursive"], multi=false, help="Recurse into subdirectories"),
                 number: newIntArg(@["-n", "--number"], help="Max number of files to copy", helpvar="n"),
                 float: newFloatArg(@["-f", "--float"], help="Max percentage of hard drive", helpvar="pct"),
                 verbosity: newCountArg(@["-v", "--verbose"], help="Verbosity (can be repeated)"),
@@ -1530,7 +1591,7 @@ Options:
   -r, --recursive    Recurse into subdirectories
   -n, --number=<n>   Max number of files to copy
   -f, --float=<pct>  Max percentage of hard drive
-  -v, --verbose      Verbosity (can be repeated)
+  -v, --verbose...   Verbosity (can be repeated)
   -h, --help         Show help message
 """.strip()
                 check(message==expected)
@@ -1602,7 +1663,7 @@ Options:
         setup:
             let spec = (
                 version: newMessageArg(@["--version"], "0.1.0", help="Prints version info",  helpLevel = 2),
-                recursive: newCountArg(@["-r", "--recursive"], help="Recurse into subdirectories"),
+                recursive: newFlagArg(@["-r", "--recursive"], help="Recurse into subdirectories"),
                 number: newIntArg(@["-n", "--number"], help="Max number of files to copy", helpvar="n", helpLevel = 2),
                 float: newFloatArg(@["-f", "--float"], help="Max percentage of hard drive", helpvar="pct", helpLevel = 2),
                 verbosity: newCountArg(@["-v", "--verbose"], help="Verbosity (can be repeated)"),
@@ -1624,14 +1685,14 @@ Usage:
   cp --extended-help
 
 Arguments:
-  <source>         Source
-  <destination>    Destination
+  <source>          Source
+  <destination>     Destination
 
 Options:
-  -r, --recursive  Recurse into subdirectories
-  -v, --verbose    Verbosity (can be repeated)
-  -h, --help       Show help message
-  --extended-help  Show full help message
+  -r, --recursive   Recurse into subdirectories
+  -v, --verbose...  Verbosity (can be repeated)
+  -h, --help        Show help message
+  --extended-help   Show full help message
 """.strip()
                 check(message == expected)
 
@@ -1656,7 +1717,7 @@ Options:
   -r, --recursive    Recurse into subdirectories
   -n, --number=<n>   Max number of files to copy
   -f, --float=<pct>  Max percentage of hard drive
-  -v, --verbose      Verbosity (can be repeated)
+  -v, --verbose...   Verbosity (can be repeated)
   -h, --help         Show help message
   --extended-help    Show full help message
 """.strip()
