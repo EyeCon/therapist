@@ -224,7 +224,7 @@ suite "Specification errors":
             )
             parse(spec, args = @["from", "to"])
 
-    test "Commands must be specified as '<command>' rather than 'command'":
+    test "Commands must be specified as '<command>' in variants rather than 'command'":
         expect(SpecificationError):
             let subcommand = (
                 stringval: newStringArg("<name>", help="Person to greet")
@@ -256,5 +256,23 @@ Commands:
 
 Arguments:
   <name>  Person to greet""".strip()
+        check(parsed.message.get==expected)
+
+suite "Help display":
+    test "Short variants are shown before long":
+        let boring_command = (
+            help: newHelpArg("--help, -h", help="Show help message")
+        )
+        let parsed = parseOrMessage(boring_command, args="--help", command="boring")
+        let expected = """
+Usage:
+  boring
+  boring -h|--help
+
+Options:
+  -h, --help  Show help message
+""".strip()
+        check(parsed.success)
+        check(parsed.message.isSome)
         check(parsed.message.get==expected)
 

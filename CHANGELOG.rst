@@ -7,7 +7,7 @@ Changes
 - Breaking: Use a macro for ``defineArg`` to allow generated constructors to have documentation (requires ``ArgType`` parameter)
 - Breaking: Pass specification parameter to ``register`` method.
 - Generate completion scripts for fish shell
-- Options that can be repeated show ``...`` in their help text
+- Options and arguments that can be repeated show ``...`` in their help text
 - Add ``newFlagArg`` as an alias for ``newCountArg`` with ``multi=false``
 - Support paragraph-style help output by setting ``helpStyle=HelpStyle.hsParagraphs`` on help args, using ``longHelp`` parameter if present
 

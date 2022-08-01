@@ -13,7 +13,7 @@ Usage:
 
 Arguments:
   <pattern>                  A regular expression used for searching.
-  <path>                     A file or directory to search.
+  <path>...                  A file or directory to search.
 
 Options:
   -A, --after-context=<NUM>  Show NUM lines after each match.

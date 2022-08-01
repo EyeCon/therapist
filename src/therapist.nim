@@ -27,10 +27,16 @@ let COMMA = peg """
 """
 
 # Allows you to capture the o / option in -o / --option
-let OPTION_VARIANT_FORMAT = peg"""
-        option <- ^ (shortOption / longOption) $
+let OPTION_VARIANT_SHORT_FORMAT = peg"""
+        option <- ^ shortOption $
         prefix <- '\-'
         shortOption <- prefix {\w}
+    """
+
+# Allows you to capture the o / option in -o / --option
+let OPTION_VARIANT_LONG_FORMAT = peg"""
+        option <- ^ (longOption) $
+        prefix <- '\-'
         longOption <- prefix prefix {\w (\w / prefix)+}
     """
 
@@ -732,7 +738,7 @@ proc addArg(specification: Specification, variable: string, arg: Arg) =
         for variant in arg.variants:
             if variant in specification.options:
                 raise newException(SpecificationError, fmt"Option {variant} defined twice")
-            if variant.match(OPTION_VARIANT_FORMAT, matches):
+            if variant.match(OPTION_VARIANT_SHORT_FORMAT, matches) or variant.match(OPTION_VARIANT_LONG_FORMAT, matches):
                 specification.options[variant] = arg
                 if len(matches[0]) > len(helpVar):
                     helpVar = matches[0]
@@ -849,6 +855,21 @@ method render_default(arg: IntArg): string =
 
 method render_default(arg: StringPromptArg): string =
     if arg.defaultVal!="": fmt"[default: {arg.defaultVal}]" else: ""
+
+proc order_variants(variants: seq[string]): seq[string] =
+    ## Show short variants before long ones
+    var short_variants = newSeq[string](0)
+    var long_variants = newSeq[string](0)
+    for variant in variants:
+        if variant =~ OPTION_VARIANT_SHORT_FORMAT or variant =~ OPTION_VARIANT_SHORT_ALT_FORMAT:
+            short_variants.add(variant)
+        elif variant =~ OPTION_VARIANT_LONG_FORMAT or
+                variant =~ OPTION_VARIANT_LONG_ALT_FORMAT or
+                variant =~ OPTION_VARIANT_NO_FORMAT:
+            long_variants.add(variant)
+        else:
+            raise newException(ValueError, fmt"""Option format {variant} not handled""")
+    short_variants & long_variants
 
 
 proc render_usage(spec: Specification, command: string, lines: var seq[string], showLevel: Natural) =
@@ -1053,7 +1074,7 @@ proc render_help(spec: Specification, command: string, showLevel: Natural = 0, h
         if option.helpLevel > showLevel:
             continue
         if option of MessageArg or option of HelpArg:
-            let example = INDENT & command & " " & option.variants.join("|")
+            let example = INDENT & command & " " & order_variants(option.variants).join("|")
             lines.add(example)
     lines.add("")
     let usage = lines.join("\n")
@@ -1068,7 +1089,8 @@ proc render_help(spec: Specification, command: string, showLevel: Natural = 0, h
     for argument in spec.argumentList:
         if argument.helpLevel > showLevel:
             continue
-        variant_width = max(variant_width, len(argument.variants.join(", ")))
+        let multi = if argument.multi: "..." else: ""
+        variant_width = max(variant_width, len(argument.variants.join(", ") & multi))
     for option in spec.optionList:
         if option.helpLevel > showLevel:
             continue
@@ -1099,13 +1121,14 @@ proc render_help(spec: Specification, command: string, showLevel: Natural = 0, h
                         of akPositional:
                             let defaultHelp = if arg.optional: " " & arg.render_default() else: ""
                             let help = rewrap(arg.help & defaultHelp, help_width).indent(help_indent).strip()
-                            argsLines.add(INDENT & alignLeft(arg.variants.join(", "), variant_width) & INDENT & help)
+                            let multi = if arg.multi: "..." else: ""
+                            argsLines.add(INDENT & alignLeft(arg.variants.join(", ") & multi, variant_width) & INDENT & help)
                         of akOptional:
                             let defaultHelp = if not arg.required: " " & arg.render_default() else: ""
                             let help = rewrap(arg.help & defaultHelp, help_width).indent(help_indent).strip()
                             let helpVar = if len(arg.helpVar)>0: "=" & arg.helpVar else: ""
                             let multi = if arg.multi: "..." else: ""
-                            argsLines.add(INDENT & alignLeft(arg.variants.join(", ") & helpVar & multi, variant_width) & INDENT & help)
+                            argsLines.add(INDENT & alignLeft(order_variants(arg.variants).join(", ") & helpVar & multi, variant_width) & INDENT & help)
                 of HelpStyle.hsParagraphs:
                     argsLines.add("")
                     case arg.kind:
@@ -1113,12 +1136,13 @@ proc render_help(spec: Specification, command: string, showLevel: Natural = 0, h
                             argsLines.add(INDENT & arg.variants.join(", "))
                             argsLines.add(rewrap(arg.longHelp, help_para_width).indent(help_para_indent))
                         of akPositional:
-                            argsLines.add(INDENT & arg.variants.join(", "))
+                            let multi = if arg.multi: "..." else: ""
+                            argsLines.add(INDENT & arg.variants.join(", ") & multi)
                             argsLines.add(rewrap(arg.longHelp, help_para_width).indent(help_para_indent))
                         of akOptional:
                             let helpVar = if len(arg.helpVar)>0: "=" & arg.helpVar else: ""
                             let multi = if arg.multi: "..." else: ""
-                            argsLines.add(INDENT & arg.variants.join(", ") & helpVar & multi)
+                            argsLines.add(INDENT & order_variants(arg.variants).join(", ") & helpVar & multi)
                             argsLines.add(rewrap(arg.longHelp, help_para_width).indent(help_para_indent))
 
         if argsLines.len > 0:
@@ -1305,7 +1329,7 @@ proc parse(specification: Specification, args: seq[string], command: string, sta
             pos += 1
             discard option.consume(@[option_value[1]], variant, 0, command, specification)
         # Check if it's an unexpected option
-        elif args[pos] =~ OPTION_VARIANT_FORMAT:
+        elif args[pos] =~ OPTION_VARIANT_SHORT_FORMAT or args[pos] =~ OPTION_VARIANT_LONG_FORMAT:
             raise newException(ParseError, fmt"Unrecognised option: {args[pos]}")
         # Check if it's a short option followed by something
         elif args[pos] =~ peg"\-\w.+":
@@ -1582,7 +1606,7 @@ Usage:
   cp -h|--help
 
 Arguments:
-  <source>           Source
+  <source>...        Source
   <destination>      Destination
 
 Options:
@@ -1685,7 +1709,7 @@ Usage:
   cp --extended-help
 
 Arguments:
-  <source>          Source
+  <source>...       Source
   <destination>     Destination
 
 Options:
@@ -1709,7 +1733,7 @@ Usage:
   cp --extended-help
 
 Arguments:
-  <source>           Source
+  <source>...        Source
   <destination>      Destination
 
 Options:

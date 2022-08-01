@@ -26,7 +26,7 @@ Arguments:
 
         rg -- -foo
 
-  <path>
+  <path>...
     A file or directory to search. Directories are searched recursively. File
     paths specified on the command line override glob and ignore rules.
 

@@ -48,12 +48,12 @@ suite "grape":
             target: newPathArg(@["<file>", "<dir>"], help="File(s) or directory(ies) to search", multi=true),
             recursive: newFlagArg(@["-r", "--recursive"], help="Recurse into subdirectories", group="File Options"),
             sensitivity: (
-                insensitive: newFlagArg(@["-i", "--ignore-case"], help="Case insensitive pattern matching", group="Matching Options"),
+                insensitive: newFlagArg(@["--ignore-case", "-i"], help="Case insensitive pattern matching", group="Matching Options"),
                 smartcase: newFlagArg(@["-S", "--smart-case"], help="Case insensitive pattern matching for lower case patterns, sensitive otherwise", group="Matching Options"),
                 sensitive: newFlagArg(@["-s", "--case-sensitive"], help="Case sensitive pattern matching", group="Matching Options"),
             ),
             follow: newFlagArg(@["--[no]follow"], help="Follow symlinks", group="File Options"),
-            context: newIntArg(@["-C", "--context"], defaultVal=2, help="Number of lines of context to print", group="Display Options"),
+            context: newIntArg(@["-C", "--context"], defaultVal=2, help="Number of lines of context to print", helpVar="NUM", group="Display Options"),
             pager: newStringArg(@["--pager"], env="PAGER", help="Pager to use to display output", group="Display Options"),
             modified: newIsoDateArg(@["-m", "--modified"], defaultVal=DEFAULT_DATE, help="Only review files modified since this date", group="File Options"),
             color: newBoolArg(@["-c", "--color", "--colour"], defaultVal=true, help="Whether to colorise output", group="Display Options"),
@@ -77,7 +77,7 @@ Usage:
 
 Arguments:
   <pattern>                             Regular expression pattern to look for
-  <file>, <dir>                         File(s) or directory(ies) to search
+  <file>, <dir>...                      File(s) or directory(ies) to search
 
 File Options:
   -r, --recursive                       Recurse into subdirectories
@@ -92,7 +92,7 @@ Matching Options:
   -s, --case-sensitive                  Case sensitive pattern matching
 
 Display Options:
-  -C, --context=<context>               Number of lines of context to print
+  -C, --context=<NUM>                   Number of lines of context to print
                                         [default: 2]
   --pager=<pager>                       Pager to use to display output
   -c, --color, --colour=<colour>        Whether to colorise output [default:

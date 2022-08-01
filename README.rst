@@ -268,6 +268,14 @@ Contributing
 
 The code lives on `bitbucket`_. Pull requests (with tests) and bug reports welcome!
 
+Compatibility
+-------------
+
+For now, tests are run against the latest stable version of the 1.0.x, 1.2.x, 1.4.x and 1.6.x branches. Dropping support for
+earlier verions may be considered for future releases, but only if it adds meaningful functionality / simplicity / maintainability.
+
+Internally, `Therapist_` uses CamelCase.
+
 License
 -------
 
