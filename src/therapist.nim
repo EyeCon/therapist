@@ -295,8 +295,8 @@ proc newStringArg*(variants: seq[string], help: string, longHelp = "", defaultVa
     ## - `choices` is a set of allowed values for the argument
     ## - `helpvar` is a dummy variable name shown to the user in the help message for`ValueArg` (i.e. `--option <helpvar>`).
     ##   Defaults to the longest supplied variant
-    ## - `required` implies that an optional argument must appear or parsing will fail
-    ## - `optional` implies that a positional argument does not have to appear
+    ## - `required` implies that an optional argument must appear or parsing will fail (only relevant for options)
+    ## - `optional` implies that a positional argument does not have to appear (only relevant for arguments)
     ## - `multi` implies that an Option may appear multiple times or an Argument consume multiple values
     ## - `helpLevel` allows help messages to exclude the arg if it is
     ##   low-priority, enabling `--help` and `--extended-help` help messages.
@@ -856,7 +856,7 @@ method render_default(arg: IntArg): string =
 method render_default(arg: StringPromptArg): string =
     if arg.defaultVal!="": fmt"[default: {arg.defaultVal}]" else: ""
 
-proc order_variants(variants: seq[string]): seq[string] =
+proc split_variants(variants: seq[string]): tuple[short: seq[string], long: seq[string]] =
     ## Show short variants before long ones
     var short_variants = newSeq[string](0)
     var long_variants = newSeq[string](0)
@@ -869,7 +869,7 @@ proc order_variants(variants: seq[string]): seq[string] =
             long_variants.add(variant)
         else:
             raise newException(ValueError, fmt"""Option format {variant} not handled""")
-    short_variants & long_variants
+    (short_variants, long_variants)
 
 
 proc render_usage(spec: Specification, command: string, lines: var seq[string], showLevel: Natural) =
@@ -1074,7 +1074,8 @@ proc render_help(spec: Specification, command: string, showLevel: Natural = 0, h
         if option.helpLevel > showLevel:
             continue
         if option of MessageArg or option of HelpArg:
-            let example = INDENT & command & " " & order_variants(option.variants).join("|")
+            let variants = split_variants(option.variants)
+            let example = INDENT & command & " " & (variants.short & variants.long).join("|")
             lines.add(example)
     lines.add("")
     let usage = lines.join("\n")
@@ -1082,6 +1083,32 @@ proc render_help(spec: Specification, command: string, showLevel: Natural = 0, h
     let max_width = 80
     var variant_width = 0
     # Find the widest command/argument/option example so we can ensure that the help texts all line up
+    var seen_short_variants = false
+    var can_line_up = true
+    # If commands only include one short option, we can make them all line up by indenting long variants e.g.
+    # Options:
+    #   -o, --option          Help for option
+    #       --another-option  Help for another option
+    # But don't bother if the short variants are wide or there aren't any short variants, e.g.
+    # Options:
+    #   -y/-n, --yes/--no    Assume yes / no
+    #   -r, -R, --recursive  Help for recursive option 
+    #   -o, --option         Help for another option
+    # or 
+    # Options:
+    #   --help    Show help
+    #   --option  Help for option
+
+    for option in spec.optionList:
+        let variants = split_variants(option.variants)
+        if len(variants.short)==0:
+            continue
+        elif len(variants.short)>1:
+            can_line_up = false
+        elif not (variants.short[0] =~ OPTION_VARIANT_SHORT_FORMAT):
+            can_line_up = false
+        seen_short_variants = true
+
     for cmd in spec.commandList:
         if cmd.helpLevel > showLevel:
             continue
@@ -1096,7 +1123,10 @@ proc render_help(spec: Specification, command: string, showLevel: Natural = 0, h
             continue
         let helpVar = if len(option.helpVar)>0: "=" & option.helpVar else: ""
         let multi = if option.multi: "..." else: ""
-        variant_width = max(variant_width, len(option.variants.join(", ") & helpVar & multi))
+        if seen_short_variants and can_line_up:
+            variant_width = max(variant_width, len("-o, ") + len(split_variants(option.variants).long.join(", ") & helpVar & multi))
+        else:
+            variant_width = max(variant_width, len(option.variants.join(", ") & helpVar & multi))
 
     let help_indent = INDENT_WIDTH + variant_width + INDENT_WIDTH
     let help_width = max_width - help_indent
@@ -1128,7 +1158,14 @@ proc render_help(spec: Specification, command: string, showLevel: Natural = 0, h
                             let help = rewrap(arg.help & defaultHelp, help_width).indent(help_indent).strip()
                             let helpVar = if len(arg.helpVar)>0: "=" & arg.helpVar else: ""
                             let multi = if arg.multi: "..." else: ""
-                            argsLines.add(INDENT & alignLeft(order_variants(arg.variants).join(", ") & helpVar & multi, variant_width) & INDENT & help)
+                            let variants = split_variants(arg.variants)
+                            if seen_short_variants and can_line_up:
+                                if len(variants.short)>0:
+                                    argsLines.add(INDENT & alignLeft((variants.short & variants.long).join(", ") & helpVar & multi, variant_width) & INDENT & help)
+                                else:
+                                    argsLines.add(INDENT & alignLeft("    " & variants.long.join(", ") & helpVar & multi, variant_width) & INDENT & help)
+                            else:
+                                argsLines.add(INDENT & alignLeft((variants.short & variants.long).join(", ") & helpVar & multi, variant_width) & INDENT & help)
                 of HelpStyle.hsParagraphs:
                     argsLines.add("")
                     case arg.kind:
@@ -1142,7 +1179,8 @@ proc render_help(spec: Specification, command: string, showLevel: Natural = 0, h
                         of akOptional:
                             let helpVar = if len(arg.helpVar)>0: "=" & arg.helpVar else: ""
                             let multi = if arg.multi: "..." else: ""
-                            argsLines.add(INDENT & order_variants(arg.variants).join(", ") & helpVar & multi)
+                            let variants = split_variants(arg.variants)
+                            argsLines.add(INDENT & (variants.short & variants.long).join(", ") & helpVar & multi)
                             argsLines.add(rewrap(arg.longHelp, help_para_width).indent(help_para_indent))
 
         if argsLines.len > 0:
@@ -1526,7 +1564,7 @@ Arguments:
 
 Options:
   -t, --times=<times>  How many times to greet [default: 1]
-  --version            Prints version
+      --version        Prints version
   -h, --help           Show help message""".strip()
                 check(message==expected)
 
@@ -1610,7 +1648,7 @@ Arguments:
   <destination>      Destination
 
 Options:
-  --version          Prints version. Hopefully will be in semver format, but
+      --version      Prints version. Hopefully will be in semver format, but
                      then does that really make sense for a copy command?
   -r, --recursive    Recurse into subdirectories
   -n, --number=<n>   Max number of files to copy
@@ -1709,14 +1747,14 @@ Usage:
   cp --extended-help
 
 Arguments:
-  <source>...       Source
-  <destination>     Destination
+  <source>...          Source
+  <destination>        Destination
 
 Options:
-  -r, --recursive   Recurse into subdirectories
-  -v, --verbose...  Verbosity (can be repeated)
-  -h, --help        Show help message
-  --extended-help   Show full help message
+  -r, --recursive      Recurse into subdirectories
+  -v, --verbose...     Verbosity (can be repeated)
+  -h, --help           Show help message
+      --extended-help  Show full help message
 """.strip()
                 check(message == expected)
 
@@ -1733,16 +1771,16 @@ Usage:
   cp --extended-help
 
 Arguments:
-  <source>...        Source
-  <destination>      Destination
+  <source>...          Source
+  <destination>        Destination
 
 Options:
-  --version          Prints version info
-  -r, --recursive    Recurse into subdirectories
-  -n, --number=<n>   Max number of files to copy
-  -f, --float=<pct>  Max percentage of hard drive
-  -v, --verbose...   Verbosity (can be repeated)
-  -h, --help         Show help message
-  --extended-help    Show full help message
+      --version        Prints version info
+  -r, --recursive      Recurse into subdirectories
+  -n, --number=<n>     Max number of files to copy
+  -f, --float=<pct>    Max percentage of hard drive
+  -v, --verbose...     Verbosity (can be repeated)
+  -h, --help           Show help message
+      --extended-help  Show full help message
 """.strip()
               check(message == expected)

@@ -86,13 +86,13 @@ Usage:
   navel_fate ship move -h|--help
 
 Arguments:
-  <name>           Name of ship to move
-  <x>              x grid reference
-  <y>              y grid reference
+  <name>               Name of ship to move
+  <x>                  x grid reference
+  <y>                  y grid reference
 
 Options:
-  --speed=<speed>  Speed in knots [default: 10]
-  -h, --help       Show help message""".strip
+      --speed=<speed>  Speed in knots [default: 10]
+  -h, --help           Show help message""".strip
         check(message.get==expected)
 
 

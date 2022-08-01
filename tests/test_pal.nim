@@ -63,14 +63,14 @@ Usage:
   pal -h|--help
 
 Commands:
-  auth            Set authentication parameters
-  init            Create a new repository
-  pull            Pull changes from another repository
-  push            Push changes to another repository
+  auth                Set authentication parameters
+  init                Create a new repository
+  pull                Pull changes from another repository
+  push                Push changes to another repository
 
 Options:
-  -h, --help      Show help message
-  --pager=<TYPE>  When to paginate [default: auto]
+  -h, --help          Show help message
+      --pager=<TYPE>  When to paginate [default: auto]
 
 For more detail on e.g. the init command, run 'pal init --help'""".strip()
             check(message==expected)
@@ -92,12 +92,12 @@ Usage:
   pal init -h|--help
 
 Arguments:
-  <destination>                    Location for new repository [default: .]
+  <destination>                        Location for new repository [default: .]
 
 Options:
-  --template=<template-directory>  Specify directory from which template will be
-                                   used
-  -h, --help                       Show help message""".strip()
+      --template=<template-directory>  Specify directory from which template
+                                       will be used
+  -h, --help                           Show help message""".strip()
             check(message==expected)
 
     test "Subcommand parsing":

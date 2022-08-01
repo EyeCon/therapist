@@ -12,9 +12,9 @@ Usage:
   rg <pattern> [<path>]...
 
 Arguments:
-  <pattern>                  A regular expression used for searching.
-  <path>...                  A file or directory to search.
+  <pattern>                     A regular expression used for searching.
+  <path>...                     A file or directory to search.
 
 Options:
-  -A, --after-context=<NUM>  Show NUM lines after each match.
-  --colors=<COLOR_SPEC>...   Configure color settings and styles.
+  -A, --after-context=<NUM>     Show NUM lines after each match.
+      --colors=<COLOR_SPEC>...  Configure color settings and styles.
