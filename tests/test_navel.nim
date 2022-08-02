@@ -61,7 +61,7 @@ Usage:
   navel_fate ship move <name> <x> <y>
   navel_fate ship shoot <x> <y>
   navel_fate mine (set|remove) <x> <y>
-  navel_fate -h|--help
+  navel_fate (-h | --help)
 
 Commands:
   ship        Ship commands
@@ -83,7 +83,7 @@ Command to move your ship
 
 Usage:
   navel_fate ship move <name> <x> <y>
-  navel_fate ship move -h|--help
+  navel_fate ship move (-h | --help)
 
 Arguments:
   <name>               Name of ship to move

@@ -72,8 +72,7 @@ suite "grape":
         let expected = """
 Usage:
   grape <pattern> (<file>|<dir>)...
-  grape -v|--version
-  grape -h|--help
+  grape (-v | --version | -h | --help)
 
 Arguments:
   <pattern>                             Regular expression pattern to look for

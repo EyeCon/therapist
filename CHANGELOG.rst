@@ -10,6 +10,8 @@ Changes
 - Options and arguments that can be repeated show ``...`` in their help text
 - Add ``newFlagArg`` as an alias for ``newCountArg`` with ``multi=false``
 - Support paragraph-style help output by setting ``helpStyle=HelpStyle.hsParagraphs`` on help args, using ``longHelp`` parameter if present
+- Show HelpArgs and MessageArgs all in one usage example
+- Show ``[choices: high|medium|low]`` hint in help for options
 
 0.2.0 2022-07-16
 ^^^^^^^^^^^^^^^^

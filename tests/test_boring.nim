@@ -138,7 +138,7 @@ suite "Basic option parsing":
         let expected = """
 Usage:
   boring
-  boring -h|--help
+  boring (-h | --help)
 
 Options:
   -i, --int=<int>        Some int value
@@ -157,7 +157,7 @@ Options:
         let expected = """
 Usage:
   boring
-  boring -h|--help
+  boring (-h | --help)
 
 Options:
   -i, --int=<int>        Some int value [default: 1]
@@ -176,7 +176,7 @@ Options:
         let expected = """
 Usage:
   boring
-  boring -h|--help
+  boring (-h | --help)
 
 Options:
   -i, --int=<I>     Some int value
@@ -267,7 +267,7 @@ suite "Help display":
         let expected = """
 Usage:
   boring
-  boring -h|--help
+  boring (-h | --help)
 
 Options:
   -h, --help  Show help message

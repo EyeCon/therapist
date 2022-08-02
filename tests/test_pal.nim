@@ -60,7 +60,7 @@ Usage:
   pal init [<destination>]
   pal pull [<remote>]
   pal push <remote>
-  pal -h|--help
+  pal (-h | --help)
 
 Commands:
   auth                Set authentication parameters
@@ -70,7 +70,8 @@ Commands:
 
 Options:
   -h, --help          Show help message
-      --pager=<TYPE>  When to paginate [default: auto]
+      --pager=<TYPE>  When to paginate [choices: always|auto|never] [default:
+                      auto]
 
 For more detail on e.g. the init command, run 'pal init --help'""".strip()
             check(message==expected)
@@ -89,7 +90,7 @@ Create a new repository
 
 Usage:
   pal init [<destination>]
-  pal init -h|--help
+  pal init (-h | --help)
 
 Arguments:
   <destination>                        Location for new repository [default: .]

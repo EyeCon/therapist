@@ -472,7 +472,7 @@ proc newHelpArg*(variants= @["-h", "--help"], help="Show help message", longHelp
     ##
     ##      Usage:
     ##        hello <name>
-    ##        hello -h|--help
+    ##        hello (-h | --help)
     ##
     ##      Arguments:
     ##        <name>           Someone to greet
@@ -1070,13 +1070,16 @@ proc render_help(spec: Specification, command: string, showLevel: Natural = 0, h
     # Fetch a list of usage examples
     spec.render_usage(command, lines, showLevel)
     # Only include options in usage for the main parser
+    var shortcut_variants = newSeq[string]()
     for option in spec.optionList:
         if option.helpLevel > showLevel:
             continue
         if option of MessageArg or option of HelpArg:
             let variants = split_variants(option.variants)
-            let example = INDENT & command & " " & (variants.short & variants.long).join("|")
-            lines.add(example)
+            shortcut_variants &= variants.short & variants.long
+    if len(shortcut_variants)>0:
+        let example = INDENT & command & " (" & shortcut_variants.join(" | ") & ")"
+        lines.add(example)
     lines.add("")
     let usage = lines.join("\n")
 
@@ -1154,8 +1157,9 @@ proc render_help(spec: Specification, command: string, showLevel: Natural = 0, h
                             let multi = if arg.multi: "..." else: ""
                             argsLines.add(INDENT & alignLeft(arg.variants.join(", ") & multi, variant_width) & INDENT & help)
                         of akOptional:
+                            let choices = if len(arg.render_choices)>0: fmt""" [choices: {arg.render_choices()}]""" else: ""
                             let defaultHelp = if not arg.required: " " & arg.render_default() else: ""
-                            let help = rewrap(arg.help & defaultHelp, help_width).indent(help_indent).strip()
+                            let help = rewrap(arg.help & choices & defaultHelp, help_width).indent(help_indent).strip()
                             let helpVar = if len(arg.helpVar)>0: "=" & arg.helpVar else: ""
                             let multi = if arg.multi: "..." else: ""
                             let variants = split_variants(arg.variants)
@@ -1556,8 +1560,7 @@ Greeter
 
 Usage:
   hello <name>
-  hello --version
-  hello -h|--help
+  hello (--version | -h | --help)
 
 Arguments:
   <name>               Person to greet
@@ -1640,8 +1643,7 @@ Options:
                 let expected = """
 Usage:
   cp <source>... <destination>
-  cp --version
-  cp -h|--help
+  cp (--version | -h | --help)
 
 Arguments:
   <source>...        Source
@@ -1743,8 +1745,7 @@ Options:
                 let expected = """
 Usage:
   cp <source>... <destination>
-  cp -h|--help
-  cp --extended-help
+  cp (-h | --help | --extended-help)
 
 Arguments:
   <source>...          Source
@@ -1766,9 +1767,7 @@ Options:
               let expected = """
 Usage:
   cp <source>... <destination>
-  cp --version
-  cp -h|--help
-  cp --extended-help
+  cp (--version | -h | --help | --extended-help)
 
 Arguments:
   <source>...          Source

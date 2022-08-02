@@ -23,7 +23,7 @@ suite "Nimplayer":
         let expected = """
 Usage:
   nimplayer play <filename>
-  nimplayer -h|--help
+  nimplayer (-h | --help)
 
 Commands:
   play              Play a file

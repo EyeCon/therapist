@@ -62,8 +62,7 @@ The above parser generates the following help message
 
     Usage:
       hello <name>
-      hello --version
-      hello -h|--help
+      hello (--version | -h | --help)
 
     Arguments:
       <name>               Person to greet
@@ -224,7 +223,7 @@ run ``navel_fate mine --help``.
      navel_fate ship move <name> <x> <y>
      navel_fate ship shoot <x> <y>
      navel_fate mine (set|remove) <x> <y>
-     navel_fate -h|--help
+     navel_fate (-h | --help)
 
    Commands:
      ship        Ship commands
