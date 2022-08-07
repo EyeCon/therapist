@@ -1683,6 +1683,7 @@ Options:
             expect(ParseError):
                 parse(spec, args = @["source"])
 
+
     suite "Peg test":
         test "Option no format":
             var matches: array[2, string]

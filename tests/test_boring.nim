@@ -42,6 +42,15 @@ suite "Basic option parsing":
             boolval: newBoolArg(@["-b", "--bool"], help="Some boolean value", helpvar="B"),
             help: newHelpArg()
         )
+        let boring_args = (
+            intval: newIntArg(@["-i", "--int"], help="Some int value", helpvar="I"),
+            floatval: newFloatArg(@["-f", "--float"], help="Some float value", helpvar="F"),
+            stringval: newStringArg(@["-s", "--string"], help="Some string value", helpvar="S"),
+            boolval: newBoolArg(@["-b", "--bool"], help="Some boolean value", helpvar="B"),
+            help: newHelpArg(),
+            first: newStringArg("<first>", help="The first argument"),
+            second: newStringArg("<second>", help="The second argument"),
+        )
     
     test "Successful short-option parsing":
         let parsed = boring.parseCopy(args="-i 1 -f 2.0 -s s -b true", command="boring")
@@ -185,6 +194,26 @@ Options:
   -b, --bool=<B>    Some boolean value
   -h, --help        Show help message""".strip()
         check(message==expected)
+    
+    test "- is a valid argument":
+        let parsed = parseOrMessage(boring_args, args="- second", command="cp")
+        check(parsed.success)
+        if not parsed.success and parsed.message.isSome:
+            echo parsed.message.get
+        check(boring_args.first.seen)
+        check(boring_args.first.value=="-")
+        check(boring_args.second.seen)
+        check(boring_args.second.value=="second")
+        
+    test "-- terminates options":
+        let parsed = parseOrMessage(boring_args, args="-- --help --float", command="cp")
+        check(parsed.success)
+        if not parsed.success and parsed.message.isSome:
+            echo parsed.message.get
+        check(boring_args.first.seen)
+        check(boring_args.first.value=="--help")
+        check(boring_args.second.seen)
+        check(boring_args.second.value=="--float")
 
 suite "Specification errors":
     test "Options and arguments cannot be mixed":
