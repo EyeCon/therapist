@@ -3,7 +3,10 @@
 import os
 import packages/docutils/rstast
 import packages/docutils/rst
-import posix_utils
+when (NimMajor, NimMinor, NimPatch) < (1, 6, 10):
+    import posix_utils
+else:
+    import std/tempfiles
 import strformat
 import strutils
 import terminal
@@ -12,11 +15,19 @@ import ../src/therapist
 const SKIP = "doctest: skip"
 
 template withTempDir(prefix: string, code: untyped): untyped =
-    let tempdirname {.inject.} = absolutePath(mkdtemp(prefix))
-    try:
-        code
-    finally:
-        removeDir(tempdirname)
+    # Attemps to use mkdtemp fail on OSX from 1.6.10 onwards
+    when (NimMajor, NimMinor, NimPatch) < (1, 6, 10):
+        let tempdirname {.inject.} = absolutePath(mkdtemp(prefix))
+        try:
+            code
+        finally:
+            removeDir(tempdirname)
+    else:
+        let tempdirname {.inject.} = absolutePath(createTempDir(prefix, "tmp"))
+        try:
+            code
+        finally:
+            removeDir(tempdirname)
 
 proc gatherExamples(node: PRstNode, examples: var seq[string]) =
     if isnil(node):
