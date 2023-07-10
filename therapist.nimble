@@ -18,16 +18,16 @@ installExt    = @["nim"]
 # Tasks
 
 task tests, "Runs the tests":
-    selfExec "c --hints:off -r src/therapist"
-    selfExec "rst2html --hints:off --outdir:build/docs README.rst"
-    selfExec "doc --hints:off --outdir:build/docs src/therapist"
+    selfExec "c --hints:off --warning:LockLevel:off -r src/therapist"
+    selfExec "rst2html --hints:off --warning:LockLevel:off --outdir:build/docs README.rst"
+    selfExec "doc --hints:off --warning:LockLevel:off --outdir:build/docs src/therapist"
     let testDir = buildDir / "tests"
     mkDir testDir
     for fname in sorted(listFiles("tests")):
         let fileparts = splitFile(fname)
         if fileparts.name.startsWith("test") and fileparts.ext==".nim":
-            selfExec fmt"c --hints:off --outdir:{testDir} -r {fname}"
-    selfExec fmt"c --hints:off --outdir:{testDir} utils/test_rst"
+            selfExec fmt"c --hints:off --warning:LockLevel:off --outdir:{testDir} -r {fname}"
+    selfExec fmt"c --hints:off --warning:LockLevel:off --outdir:{testDir} utils/test_rst"
     exec fmt"{testDir}/test_rst README.rst"
 
 task docs, "Builds documentation":
