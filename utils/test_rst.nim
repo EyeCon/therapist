@@ -3,7 +3,7 @@
 import os
 import packages/docutils/rstast
 import packages/docutils/rst
-when (NimMajor, NimMinor, NimPatch) < (1, 6, 10):
+when (NimMajor, NimMinor, NimPatch) < (1, 6, 0):
     import posix_utils
 else:
     import std/tempfiles
@@ -15,8 +15,8 @@ import ../src/therapist
 const SKIP = "doctest: skip"
 
 template withTempDir(prefix: string, code: untyped): untyped =
-    # Attemps to use mkdtemp fail on OSX from 1.6.10 onwards
-    when (NimMajor, NimMinor, NimPatch) < (1, 6, 10):
+    # Attemps to use mkdtemp now fail on OSX, but createTempDir wasn't available before 1.6
+    when (NimMajor, NimMinor, NimPatch) < (1, 6, 0):
         let tempdirname {.inject.} = absolutePath(mkdtemp(prefix))
         try:
             code
