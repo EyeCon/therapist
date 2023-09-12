@@ -46,4 +46,4 @@ task clean, "Clean up generated binaries, css and html files":
 
 # Dependencies
 
-requires "nim >= 1.0.0"
+requires "nim >= 2.0.0"
