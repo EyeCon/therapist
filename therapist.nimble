@@ -6,8 +6,8 @@ let buildDir  = "build"
 
 # Package
 
-version       = "0.3.0"
-author        = "Max Grender-Jones"
+version       = "2.0.1"
+author        = "Max Grender-Jones++"
 description   = "Type-safe commandline parsing with minimal magic"
 license       = "LGPL"
 srcDir        = "src"
